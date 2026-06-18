@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>AI: From Prompt to Agent — MKT 설문</title>
+<style>
+  :root{
+    --bg1:#0b1026; --bg2:#1a0b3a; --bg3:#2a1052;
+    --neon:#00f0ff; --neon2:#ff3df0; --neon3:#ffe14d; --lime:#9dff3d;
+    --card:rgba(255,255,255,.06); --stroke:rgba(255,255,255,.14);
+    --txt:#eef2ff; --muted:#9aa6d6;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html{-webkit-text-size-adjust:100%}
+  html,body{margin:0;min-height:100%}
+  body{
+    font-family:'Pretendard',-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Segoe UI',Roboto,sans-serif;
+    color:var(--txt);
+    background:
+      radial-gradient(1000px 600px at 80% -10%, rgba(255,61,240,.25), transparent 60%),
+      radial-gradient(900px 600px at 10% 110%, rgba(0,240,255,.22), transparent 60%),
+      linear-gradient(160deg, var(--bg1), var(--bg2) 55%, var(--bg3));
+    background-attachment:fixed; overflow-x:hidden;
+  }
+  .grid{position:fixed;inset:0;z-index:0;perspective:400px;overflow:hidden;pointer-events:none;opacity:.32}
+  .grid::after{content:"";position:absolute;left:-50%;right:-50%;bottom:-20%;height:120%;
+    background-image:linear-gradient(var(--neon) 1px,transparent 1px),linear-gradient(90deg,var(--neon) 1px,transparent 1px);
+    background-size:40px 40px;transform:rotateX(70deg);transform-origin:bottom;animation:flow 6s linear infinite;
+    -webkit-mask-image:linear-gradient(to top,#000,transparent 75%);mask-image:linear-gradient(to top,#000,transparent 75%);}
+  @keyframes flow{from{background-position:0 0}to{background-position:0 40px}}
+
+  .wrap{position:relative;z-index:2;max-width:600px;margin:0 auto;min-height:100vh;
+    display:flex;flex-direction:column;padding:16px 16px calc(26px + env(safe-area-inset-bottom))}
+
+  .hud{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+  .bar{flex:1;height:16px;border-radius:99px;background:rgba(255,255,255,.08);border:1px solid var(--stroke);overflow:hidden;position:relative}
+  .bar>i{display:block;height:100%;width:0;border-radius:99px;background:linear-gradient(90deg,var(--neon),var(--lime),var(--neon3));box-shadow:0 0 16px var(--neon);transition:width .5s cubic-bezier(.2,.9,.2,1)}
+  .bar>span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#031}
+  .score{font-weight:900;font-size:14px;color:var(--neon3);text-shadow:0 0 10px rgba(255,225,77,.6);min-width:70px;text-align:right;white-space:nowrap}
+  .lvl{font-size:11px;color:var(--muted);font-weight:700}
+
+  .stage{flex:1;display:flex;flex-direction:column;justify-content:center;perspective:700px}
+  .bot{width:128px;height:128px;margin:0 auto 6px;display:block;transform-style:preserve-3d;
+    filter:drop-shadow(0 12px 14px rgba(0,0,0,.4));animation:bob3d 3.4s ease-in-out infinite}
+  @keyframes bob3d{0%{transform:translateY(0) rotateZ(-1.5deg) rotateY(-10deg)}50%{transform:translateY(-11px) rotateZ(1.5deg) rotateY(10deg)}100%{transform:translateY(0) rotateZ(-1.5deg) rotateY(-10deg)}}
+  .speech{max-width:340px;margin:0 auto 16px;background:var(--card);border:1px solid var(--stroke);border-radius:16px;padding:10px 16px;text-align:center;font-weight:700;font-size:14px;position:relative;backdrop-filter:blur(6px)}
+  .speech::after{content:"";position:absolute;top:-8px;left:50%;transform:translateX(-50%) rotate(45deg);width:14px;height:14px;background:var(--card);border-left:1px solid var(--stroke);border-top:1px solid var(--stroke)}
+  .speech.say{animation:saypop .35s ease}
+  @keyframes saypop{0%{transform:scale(.92);opacity:.5}60%{transform:scale(1.03)}100%{transform:scale(1);opacity:1}}
+
+  .card{background:var(--card);border:1px solid var(--stroke);border-radius:22px;padding:22px 18px 18px;backdrop-filter:blur(10px);box-shadow:0 20px 60px rgba(0,0,0,.45);animation:pop .4s both}
+  @keyframes pop{0%{transform:scale(.5);opacity:0}60%{transform:scale(1.05)}100%{transform:scale(1);opacity:1}}
+  .qmeta{font-size:12px;font-weight:800;letter-spacing:1px;color:var(--neon);text-transform:uppercase}
+  .qtitle{font-size:20px;font-weight:900;line-height:1.34;margin:6px 0 4px}
+  .qsub{font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.5}
+  .grplabel{font-size:12px;font-weight:900;color:var(--neon3);margin:6px 0 8px;letter-spacing:.5px}
+  .opts{display:flex;flex-direction:column;gap:10px}
+  .opt{display:flex;align-items:center;gap:11px;padding:14px 13px;border-radius:14px;cursor:pointer;background:rgba(255,255,255,.04);border:1.5px solid var(--stroke);font-weight:700;font-size:15px;transition:transform .12s,border-color .2s,background .2s;user-select:none;min-height:52px}
+  .opt:active{transform:scale(.98)}
+  .opt .emo{font-size:20px;width:26px;text-align:center;display:flex;align-items:center;justify-content:center;flex:0 0 26px}
+  .opt .olab{flex:1;min-width:0}
+  .opt.sel{border-color:var(--neon);background:rgba(0,240,255,.14);box-shadow:0 0 0 3px rgba(0,240,255,.18),0 0 22px rgba(0,240,255,.3)}
+  .chk{opacity:0;color:var(--neon);font-weight:900;flex:0 0 auto}
+  .opt.sel .chk{opacity:1}
+  .billseg{display:flex;flex:0 0 auto;border-radius:99px;overflow:hidden;border:1px solid var(--stroke)}
+  .bseg{font-size:11px;font-weight:900;padding:7px 11px;background:rgba(0,0,0,.28);color:var(--muted);cursor:pointer;border:none;font-family:inherit;min-height:34px}
+  .bseg+.bseg{border-left:1px solid var(--stroke)}
+  .bseg.free.active{color:#03210b;background:var(--lime)}
+  .bseg.paid.active{color:#2a1a00;background:var(--neon3)}
+  .billfix{flex:0 0 auto;font-size:10.5px;font-weight:900;padding:6px 10px;border-radius:99px;color:var(--lime);background:rgba(157,255,61,.12);border:1px solid rgba(157,255,61,.4)}
+  .etcin{flex:1;min-width:0;background:rgba(0,0,0,.28);border:1px solid var(--stroke);border-radius:10px;color:var(--txt);padding:9px 10px;font-size:15px;font-family:inherit}
+
+  textarea,input[type=text]{width:100%;background:rgba(0,0,0,.25);border:1.5px solid var(--stroke);border-radius:14px;color:var(--txt);padding:13px;font-size:16px;font-family:inherit;resize:none}
+  textarea:focus,input:focus{outline:none;border-color:var(--neon);box-shadow:0 0 18px rgba(0,240,255,.25)}
+
+  .slideval{text-align:center;font-size:40px;font-weight:900;color:var(--neon3);text-shadow:0 0 18px rgba(255,225,77,.5);margin:6px 0}
+  input[type=range]{-webkit-appearance:none;width:100%;height:16px;border-radius:99px;background:linear-gradient(90deg,var(--neon),var(--lime) var(--p,40%),rgba(255,255,255,.1) var(--p,40%));border:1px solid var(--stroke)}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:32px;height:32px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff,var(--neon3));border:3px solid #fff;cursor:pointer;box-shadow:0 0 18px var(--neon3)}
+
+  .nav{display:flex;gap:10px;margin-top:18px}
+  .btn{flex:1;border:none;border-radius:14px;padding:15px;font-size:16px;font-weight:900;cursor:pointer;font-family:inherit;letter-spacing:.4px;transition:transform .12s,filter .2s;min-height:52px}
+  .btn:active{transform:translateY(2px) scale(.99)}
+  .btn.primary{color:#021;background:linear-gradient(90deg,var(--neon),var(--lime));box-shadow:0 8px 24px rgba(0,240,255,.4)}
+  .btn.primary:disabled{filter:grayscale(.7) brightness(.6);cursor:not-allowed;box-shadow:none}
+  .btn.ghost{flex:0 0 92px;background:rgba(255,255,255,.06);border:1px solid var(--stroke);color:var(--muted)}
+
+  .hero{text-align:center;margin-top:6px}
+  .kicker{font-size:12px;font-weight:900;letter-spacing:3px;color:var(--neon2);text-transform:uppercase}
+  .title{font-size:30px;font-weight:900;line-height:1.15;margin:10px 0 2px;background:linear-gradient(90deg,var(--neon),#fff,var(--neon3));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .title small{display:block;font-size:15px;letter-spacing:1px;color:var(--muted);-webkit-text-fill-color:var(--muted);margin-top:8px}
+  .pill{display:inline-flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:16px 0 4px}
+  .pill span{font-size:12px;font-weight:800;padding:7px 12px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid var(--stroke)}
+
+  .result{text-align:center}
+  .rank{font-size:42px;font-weight:900;margin:4px 0;background:linear-gradient(90deg,var(--neon3),var(--neon2));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .statline{display:flex;justify-content:center;gap:12px;margin:14px 0;flex-wrap:wrap}
+  .stat{background:var(--card);border:1px solid var(--stroke);border-radius:14px;padding:11px 14px;min-width:82px}
+  .stat b{display:block;font-size:21px;color:var(--neon3)}
+  .stat small{color:var(--muted);font-size:11px;font-weight:700}
+
+  /* digimon select */
+  .mongrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:12px;margin:8px 0 4px}
+  .moncard{background:var(--card);border:1.5px solid var(--stroke);border-radius:18px;padding:8px 6px 12px;text-align:center;cursor:pointer;transition:transform .15s,border-color .2s,box-shadow .2s;animation:pop .4s both}
+  .moncard:active{transform:scale(.96)}
+  .moncard.picked{border-color:var(--neon3);box-shadow:0 0 0 3px rgba(255,225,77,.3),0 0 26px rgba(255,225,77,.5)}
+  .moncard .monart .bot{width:78px;height:78px;margin:0 auto;animation:bob3d 3.4s ease-in-out infinite}
+  .monname{font-weight:900;font-size:13px;margin-top:2px}
+  .monsub{font-size:10px;color:var(--muted);font-weight:700;margin-top:2px;line-height:1.3}
+
+  /* evolution scene */
+  .evo{position:fixed;inset:0;z-index:90;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 50%,rgba(40,10,80,.85),rgba(4,4,16,.97));opacity:0;transition:opacity .35s}
+  .evo.go{opacity:1}.evo.out{opacity:0}
+  .evoflash{position:absolute;inset:0;background:#fff;opacity:0}
+  .evo.go .evoflash{animation:flash 1.3s ease-out}
+  @keyframes flash{0%{opacity:0}8%{opacity:.95}40%{opacity:.15}100%{opacity:0}}
+  .evobeams{position:absolute;width:170vmax;height:170vmax;background:repeating-conic-gradient(from 0deg,rgba(255,255,255,0) 0deg 7deg,rgba(0,240,255,.16) 7deg 14deg);border-radius:50%;animation:spin 8s linear infinite;opacity:0;transition:opacity .4s}
+  .evo.go .evobeams{opacity:.7}
+  .evo.done .evobeams{background:repeating-conic-gradient(from 0deg,rgba(255,255,255,0) 0deg 7deg,rgba(255,225,77,.22) 7deg 14deg)}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .evoinner{position:relative;text-align:center;z-index:2;perspective:900px}
+  .evolabel{font-size:14px;font-weight:900;letter-spacing:5px;color:var(--neon3);text-shadow:0 0 16px var(--neon3);margin-bottom:6px;animation:bob 1.4s ease-in-out infinite}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+  .evomon{perspective:900px}
+  .evomon .bot{width:210px;height:210px;filter:drop-shadow(0 0 30px rgba(0,240,255,.75));transform-style:preserve-3d}
+  .evomon.spin .bot{animation:evospin 1.25s cubic-bezier(.4,0,.5,1) forwards}
+  .evomon.burst .bot{animation:evopop .7s cubic-bezier(.2,1.5,.4,1)}
+  @keyframes evospin{0%{transform:scale(.15) rotateY(0);opacity:.3}20%{opacity:1}100%{transform:scale(.95) rotateY(1080deg);opacity:1}}
+  @keyframes evopop{0%{transform:scale(.3) rotateY(180deg);opacity:.2}60%{transform:scale(1.25) rotateY(0)}100%{transform:scale(1)}}
+  .evoname{font-size:28px;font-weight:900;margin-top:4px;background:linear-gradient(90deg,var(--neon),#fff,var(--neon3));-webkit-background-clip:text;background-clip:text;color:transparent}
+
+  /* popup (quiz) */
+  .pop{position:fixed;inset:0;z-index:85;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(4,4,16,.6);backdrop-filter:blur(3px);opacity:0;transition:opacity .25s}
+  .pop.go{opacity:1}
+  .popcard{width:100%;max-width:440px;background:linear-gradient(160deg,#241046,#3a1565);border:2px solid var(--neon3);border-radius:22px;padding:20px 18px 18px;box-shadow:0 0 0 4px rgba(255,225,77,.18),0 24px 70px rgba(0,0,0,.6);animation:popin .45s cubic-bezier(.2,1.4,.4,1) both}
+  @keyframes popin{0%{transform:scale(.4) rotate(-6deg);opacity:0}70%{transform:scale(1.06)}100%{transform:scale(1) rotate(0);opacity:1}}
+  .dots{display:flex;gap:7px;justify-content:center;margin:8px 0 14px}
+  .dots>i{width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,.16);border:1px solid var(--stroke)}
+  .dots>i.done{background:var(--lime);box-shadow:0 0 8px var(--lime)}
+  .dots>i.now{background:var(--neon3);box-shadow:0 0 12px var(--neon3);transform:scale(1.3)}
+  .term{font-size:26px;font-weight:900;text-align:center;margin:4px 0;line-height:1.25;background:linear-gradient(90deg,var(--neon),#fff,var(--neon3));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .reveals{display:flex;flex-direction:column;gap:9px;margin:6px 0 4px;max-height:50vh;overflow:auto}
+  .reveal{border-radius:12px;padding:10px 12px;border:1px solid var(--stroke);background:rgba(255,255,255,.04)}
+  .reveal.k{border-color:rgba(157,255,61,.5);background:rgba(157,255,61,.08)}
+  .reveal.u{border-color:rgba(255,61,240,.4);background:rgba(255,61,240,.07)}
+  .reveal .rt{font-size:14px;font-weight:800;margin-bottom:4px}
+  .reveal .rd{font-size:12.5px;color:var(--muted);line-height:1.5}
+  .tag{font-size:11px;font-weight:900;padding:2px 7px;border-radius:99px;background:rgba(0,0,0,.3);margin-right:4px}
+
+  /* my result */
+  .mr{animation:pop .4s both}
+  .mritem{background:var(--card);border:1px solid var(--stroke);border-radius:14px;padding:12px 14px;margin-bottom:10px}
+  .mrq{font-size:12px;font-weight:800;color:var(--neon);margin-bottom:3px}
+  .mra{font-size:14.5px;font-weight:700;line-height:1.5}
+  .mrtop{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+  .editbtn{flex:0 0 auto;font-size:12px;font-weight:900;padding:7px 12px;border-radius:99px;border:1px solid var(--stroke);background:rgba(0,240,255,.1);color:var(--neon);cursor:pointer}
+  .ok{color:var(--lime);font-weight:900}.no{color:#ff7aa8;font-weight:900}
+
+  /* dashboard */
+  .dash{animation:pop .4s both}
+  .dhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px}
+  .dhead h2{font-size:21px;margin:0;font-weight:900}
+  .chips{display:flex;gap:8px;flex-wrap:wrap}
+  .chip{font-size:11px;font-weight:800;padding:7px 11px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid var(--stroke);cursor:pointer}
+  .chip.bad{color:#ff8a8a;border-color:rgba(255,90,90,.4)}
+  .block{background:var(--card);border:1px solid var(--stroke);border-radius:16px;padding:14px 16px;margin-bottom:12px}
+  .block h3{font-size:14px;margin:0 0 12px;font-weight:900;color:var(--neon)}
+  .brow{margin-bottom:10px}
+  .brow .lab{display:flex;justify-content:space-between;font-size:13px;font-weight:700;margin-bottom:5px;gap:8px}
+  .brow .lab small{color:var(--muted);font-weight:800;white-space:nowrap}
+  .track{height:14px;border-radius:99px;background:rgba(255,255,255,.07);overflow:hidden}
+  .track>i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--neon2),var(--neon),var(--lime));box-shadow:0 0 12px rgba(0,240,255,.4);width:0;transition:width .8s cubic-bezier(.2,.9,.2,1)}
+  .quotes{display:flex;flex-direction:column;gap:8px}
+  .quote{font-size:13.5px;line-height:1.45;background:rgba(0,0,0,.22);border-left:3px solid var(--neon2);padding:9px 12px;border-radius:8px}
+  .big{font-size:30px;font-weight:900;color:var(--neon3);text-align:center}
+  .empty{text-align:center;color:var(--muted);padding:30px 10px;font-weight:700}
+
+  #fx{position:fixed;inset:0;pointer-events:none;z-index:60}
+  .toast{position:fixed;left:50%;top:16%;transform:translateX(-50%) scale(.6);z-index:70;font-weight:900;font-size:28px;color:var(--neon3);text-shadow:0 0 20px var(--neon3),0 4px 0 #000;opacity:0;pointer-events:none;white-space:nowrap}
+  .toast.show{animation:toast 1s ease both}
+  @keyframes toast{0%{opacity:0;transform:translateX(-50%) scale(.4) translateY(20px)}25%{opacity:1;transform:translateX(-50%) scale(1.1) translateY(0)}70%{opacity:1;transform:translateX(-50%) scale(1) translateY(-6px)}100%{opacity:0;transform:translateX(-50%) scale(1) translateY(-30px)}}
+  .mute{position:fixed;top:calc(10px + env(safe-area-inset-top));right:12px;z-index:75;width:40px;height:40px;border-radius:50%;border:1px solid var(--stroke);background:rgba(0,0,0,.35);color:#fff;font-size:18px;cursor:pointer}
+  .hidden{display:none!important}
+  .small{font-size:11px;color:var(--muted);text-align:center;margin-top:14px;line-height:1.6}
+  .small a,.foot a{color:var(--neon);cursor:pointer;text-decoration:underline}
+  .foot{text-align:center;margin-top:18px;font-size:11px;color:var(--muted)}
+  .codebox{width:100%;font-size:11px;font-family:ui-monospace,Menlo,monospace;background:rgba(0,0,0,.3);color:var(--lime);border:1px dashed var(--stroke);border-radius:10px;padding:10px;word-break:break-all;max-height:84px;overflow:auto;margin-top:8px}
+  @media (max-width:380px){
+    .title{font-size:26px}.qtitle{font-size:18px}.term{font-size:22px}.rank{font-size:36px}
+    .opt{font-size:14px}.btn{font-size:15px}
+  }
+</style>
+</head>
+<body>
+<div class="grid"></div>
+<button class="mute" id="mute" title="소리">🔊</button>
+<div id="fx"></div>
+<div class="toast" id="toast"></div>
+
+<div class="wrap">
+  <div class="hud hidden" id="hud">
+    <div style="flex:1">
+      <div class="bar"><i id="barFill"></i><span id="barTxt">0%</span></div>
+      <div class="lvl" id="lvlTxt">STAGE 1</div>
+    </div>
+    <div class="score" id="scoreTxt">0 XP</div>
+  </div>
+  <div class="stage" id="stage"></div>
+</div>
+
+<script>
+/* ===================== 설정 ===================== */
+const ADMIN_PIN="0616";              // 관리자 PIN (전체 결과 대시보드 접근용)
+const STORE='aiSurveyResponses_v2';  // 응답 저장소 (로컬 백업)
+const REMOTE_URL='';                 // ← Google Apps Script 웹앱 URL 붙여넣기 (비우면 로컬에만 저장)
+const QUIZ_AFTER='usecase';          // 이 문항 직후 깜짝 퀴즈 등장
+
+/* ===================== 데이터 ===================== */
+const LIVER='<svg width="22" height="22" viewBox="0 0 24 24"><path d="M3 8C3 5 7 4 12 5 17 4 21 6 21 9 21 14 16 17 11 17 6 17 3 13 3 8Z" fill="#b6453a"/><path d="M9 6C10 9 10 12 8 15" stroke="#7a261b" stroke-width="1.3" fill="none" stroke-linecap="round"/></svg>';
+const UTERUS='<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#e06a93" stroke-width="1.7" stroke-linecap="round"><path d="M9 11.5C9 15.5 10 19 12 20 14 19 15 15.5 15 11.5"/><path d="M9 11.5C8 8.5 6 7.5 4 8.5 6 8.5 6 10.5 7.2 11.8"/><path d="M15 11.5C16 8.5 18 7.5 20 8.5 18 8.5 18 10.5 16.8 11.8"/><circle cx="3.8" cy="8.4" r="1.5" fill="#e06a93" stroke="none"/><circle cx="20.2" cy="8.4" r="1.5" fill="#e06a93" stroke="none"/></svg>';
+
+const TEAMS=[["🎗️","BC"],[LIVER,"GI"],[UTERUS,"GU/GYN"],["🫁","LC"],["🩸","HEM"]];
+const DEGREED=[["🥉","Bronze"],["🥈","Silver"],["🥇","Gold"],["💎","Platinum"]];
+
+const TOOL_OPTS=[
+  ["🏢","AZ ChatGPT","fixed"],   // 회사 제공 = 무료 고정
+  ["💬","ChatGPT"],
+  ["🟣","Claude"],
+  ["✨","Gemini"],
+  ["🪟","Copilot"],
+  ["📝","Notion AI"],
+];
+
+const QUIZ_TERMS=[
+  ["Prompt (프롬프트)","AI에게 주는 지시·질문이에요. 어떻게 쓰느냐에 따라 결과 품질이 크게 달라집니다."],
+  ["LLM (거대언어모델)","방대한 텍스트로 학습해 사람처럼 글을 이해·생성하는 모델. ChatGPT·Claude의 두뇌예요."],
+  ["RAG (검색증강생성)","외부·사내 문서를 실시간으로 찾아 근거로 삼아 답하는 방식. 최신성은 올리고 오류는 줄여줍니다."],
+  ["Generative AI (생성형 AI)","글·이미지·코드 등 새로운 콘텐츠를 만들어내는 AI를 통칭해요."],
+  ["Agentic AI (에이전트형 AI)","목표만 주면 스스로 계획하고 도구를 써서 여러 단계를 실행하는 AI. prompt를 넘어 업무를 ‘맡기는’ 단계예요."],
+];
+
+const QS=[
+  {id:'info', type:'info', meta:'PLAYER PROFILE', title:'설문자 정보를 입력해주세요',
+   sub:'담당 팀과 나의 AI Degreed 수료 등급을 선택한 뒤 [다음]을 눌러주세요'},
+  {id:'freq', type:'single', meta:'WARM-UP', title:'AI, 얼마나 자주 쓰시나요?', sub:'솔직하게요! 점수엔 영향 없어요',
+   options:[["🔥","하루에도 여러 번"],["☀️","거의 매일"],["📆","주 몇 번"],["🌙","가끔 생각날 때"],["🧊","거의 안 써"]]},
+  {id:'azcombo', type:'single', meta:'AZ QUIZ', correct:'AZ ChatGPT · Talksiri · Copilot · ASA',
+   title:'다음 중 실제 AZ AI tool 조합을 고르세요', sub:'딱 하나만 진짜예요 🕵️',
+   options:[
+     ["🅰️","AZ ChatGPT · Talksiri · Copilot · ASA"],
+     ["🅱️","AZ ChatGPT · Talkable · Copilot · ASK"],
+     ["🅲️","GPT-Bridge · Talksiri · CoPharm · ASA"],
+     ["🅳️","AZ ChatGPT · Siri Pro · Pilot+ · ASAP"]
+   ]},
+  {id:'tools', type:'tools', meta:'INVENTORY', title:'무기고엔 어떤 AI가 있으신가요?',
+   sub:'쓰시는 걸 모두 고르고, 옆 버튼으로 유료/무료를 표시해주세요 (복수 선택)'},
+  {id:'usecase', type:'multi', meta:'COMBO', title:'실제 업무에서 어디에 쓰시나요?', sub:'제약 마케팅 실전 활용 (복수 선택)',
+   options:[
+     ["📑","제품 디테일·슬라이드 제작"],
+     ["🔬","논문·임상 데이터 리서치 요약"],
+     ["📊","시장·경쟁사 분석"],
+     ["✉️","HCP 메시지·이메일 작성"],
+     ["🎯","옴니채널 캠페인 기획·콘텐츠"]
+   ]},
+  {id:'level', type:'single', meta:'CLASS', title:'현재 AI 활용 레벨은 어디이신가요?', sub:'prompt → agent, 지금 내 위치는요?',
+   options:[
+     ["🌱","Lv.1 입문 — 가끔 물어보는 정도"],
+     ["🌿","Lv.1.5 적응 중 — 점점 손에 익는 중"],
+     ["⚙️","Lv.2 능숙 — 프롬프트 잘 다룸"],
+     ["🔁","Lv.3 자동화 시도 — 반복 업무 줄이는 중"],
+     ["🤖","Lv.4 에이전트 — 워크플로우를 맡김"]
+   ]},
+  {id:'blocker', type:'multi', meta:'BOSS', title:'AI 쓰실 때 가장 큰 벽은요?', sub:'앞을 막는 보스들이에요 (복수 선택)',
+   options:[
+     ["🎯","결과 품질 / 신뢰도"],["✏️","프롬프트 잘 못 씀"],["🗺️","어디에 써야 할지 모름"],
+     ["🔒","보안 / 규정"],["⏳","쓸 시간이 없음"],["🌀","툴이 너무 많아 혼란"]
+   ]},
+  {id:'learn', type:'single', meta:'SKILL TREE', title:'가장 키우고 싶은 스킬은 무엇인가요?', sub:'다음 레벨업에 찍을 한 가지',
+   options:[
+     ["✏️","프롬프트 잘 쓰기"],["🔁","반복 업무 자동화"],["🤖","에이전트 / 워크플로우 구축"],["📊","데이터 분석"],["🎨","이미지 생성"]
+   ]},
+  {id:'delegate', type:'text', optional:true, meta:'DREAM QUEST', title:'MKT에 가장 필요한 에이전트는?',
+   sub:'가장 맡기고 싶은 업무 한 가지를 적어주세요 (선택 · 안 써도 넘어갈 수 있어요)',
+   placeholder:'예) 매주 경쟁사 콘텐츠 모니터링하고 요약 리포트 만들어주기'},
+  {id:'expect', type:'slider', meta:'POWER LEVEL', title:'AI가 내 업무 시간을 얼마나 줄여줄까요?', sub:'기대치를 끌어올려 주세요!', unit:'%'},
+  {id:'goal', type:'multi', optional:true, meta:'FINAL', title:'이번 OBU cycle meeting MKT AI session에서 얻어가고 싶은 것은?',
+   sub:'원하는 걸 모두 골라주세요 (선택)',
+   options:[
+     ["⚡","바로 쓸 프롬프트·실전 팁"],
+     ["🤖","업무 자동화 아이디어"],
+     ["🧩","AI 에이전트 활용 사례"],
+     ["🏢","사내 AI 툴(AZ tools) 활용법"],
+     ["🤝","동료들의 활용 노하우"]
+   ]},
+];
+
+const TALK={
+  info:'먼저 본인 정보를 알려줄래요? 🪪',
+  freq:'우리 얼마나 자주 만나는 사이일까요? ⚡',
+  azcombo:'AZ 진짜 조합을 찾아봐요! 🕵️',
+  tools:'장비창을 열어봐요! 어떤 AI가 있나요? 🎒',
+  usecase:'실전에서 어떻게 쓰는지 보여줘요! 🥊',
+  level:'지금 내공이 어느 정도인지 궁금해요! 🧬',
+  blocker:'앞을 막는 보스가 누구죠? 같이 물리쳐요! 🛡️',
+  learn:'다음엔 어떤 스킬을 배우고 싶어요? 🌳',
+  delegate:'나한테 맡기고 싶은 일, 살짝 귀띔해줘요! 🪄',
+  expect:'기대치를 쭈욱 끌어올려봐요! 📈',
+  goal:'이번 세션에서 뭘 얻고 싶어요? 🎯'
+};
+const REACTS=["좋은 선택이에요! ✨","오, 멋진데요?","기록 완료 📝","역시 다르네요!","좋아요, 계속 가요! 🔥","오케이, 접수! 👍"];
+
+/* ===================== 상태 ===================== */
+const MAXSTAGE=4;
+const MONS=[
+  {key:'flame', emoji:'🔥', name:'플레임몬', c1:'#ff8a3d', c2:'#d62246', lite:'#ffd9a8', belly:'#ffe7cf', acc:'#ffd23d', stages:['불씨몬','도마몬','화염몬','드래곤몬','인페르노몬']},
+  {key:'aqua',  emoji:'💧', name:'아쿠아몬', c1:'#4cc6ff', c2:'#1f54d6', lite:'#cbf2ff', belly:'#e6f9ff', acc:'#aef0ff', stages:['물씨몬','방울몬','해류몬','크라켄몬','포세이돈몬']},
+  {key:'leaf',  emoji:'🌿', name:'리프몬',   c1:'#8fd94f', c2:'#1f9b53', lite:'#e3ffc2', belly:'#f0ffe0', acc:'#ffc4dd', stages:['새싹몬','잎새몬','넝쿨몬','포레스트몬','가이아몬']},
+  {key:'volt',  emoji:'⚡', name:'볼트몬',   c1:'#ffd23d', c2:'#f08a1d', lite:'#fff3b0', belly:'#fff7d6', acc:'#fff7c2', stages:['전구몬','스파크몬','볼트몬','썬더몬','제우스몬']},
+  {key:'shadow',emoji:'🌙', name:'섀도우몬', c1:'#9d7bff', c2:'#4a248c', lite:'#e0d4ff', belly:'#efe7ff', acc:'#cdb6ff', stages:['그림자몬','다크몬','나이트몬','이클립스몬','보이드몬']},
+];
+let screen='intro', qi=0, score=0, answers={}, muted=false;
+let chosenMon=null, monStage=0;
+let quizIdx=0, quizMarks=[], quizShown=false;
+let editing=false, savedIdx=-1, busy=false;
+
+const stageEl=document.getElementById('stage');
+const hud=document.getElementById('hud');
+
+/* ---- 저장소 ---- */
+function loadAll(){try{return JSON.parse(localStorage.getItem(STORE)||'[]')}catch(e){return[]}}
+function saveAll(a){try{localStorage.setItem(STORE,JSON.stringify(a))}catch(e){}}
+
+/* ---- 사운드 ---- */
+let AC;
+function tone(f,d=.12,t='square',v=.18,w=0){if(muted)return;try{AC=AC||new(window.AudioContext||window.webkitAudioContext)();const s=AC.currentTime+w,o=AC.createOscillator(),g=AC.createGain();o.type=t;o.frequency.setValueAtTime(f,s);g.gain.setValueAtTime(v,s);g.gain.exponentialRampToValueAtTime(.0001,s+d);o.connect(g).connect(AC.destination);o.start(s);o.stop(s+d);}catch(e){}}
+const sfx={tap:()=>tone(520,.07,'square',.12),pick:()=>{tone(660,.08);tone(880,.09,'square',.14,.05)},next:()=>{tone(523,.09);tone(784,.12,'square',.16,.08)},level:()=>{[523,659,784,1046].forEach((f,i)=>tone(f,.14,'square',.18,i*.07))},win:()=>{[523,659,784,1046,1318].forEach((f,i)=>tone(f,.2,'triangle',.2,i*.1))}};
+function evoJingle(){[392,523,659,784,1046,1318].forEach((f,i)=>tone(f,.16,'triangle',.2,i*.09));}
+
+/* ---- 마스코트 ---- */
+function bot(s){s=Math.max(0,Math.min(3,s||0));
+  const eyes=`<circle cx="46" cy="58" r="7" fill="#0b1026"/><circle cx="74" cy="58" r="7" fill="#0b1026"/><circle cx="48" cy="56" r="2.4" fill="#fff"/><circle cx="76" cy="56" r="2.4" fill="#fff"/>`;
+  return `<svg class="bot" viewBox="0 0 120 120"><rect x="26" y="34" width="68" height="58" rx="22" fill="#5a3aa0" stroke="#00f0ff" stroke-width="2.5"/>${eyes}<path d="M52 76 q8 7 16 0" stroke="#00f0ff" stroke-width="3" fill="none" stroke-linecap="round"/></svg>`;}
+function monDefs(m,id){return `<defs>
+  <radialGradient id="${id}b" cx="36%" cy="26%" r="80%"><stop offset="0" stop-color="${m.lite}"/><stop offset="50%" stop-color="${m.c1}"/><stop offset="100%" stop-color="${m.c2}"/></radialGradient>
+  <radialGradient id="${id}belly" cx="50%" cy="34%" r="74%"><stop offset="0" stop-color="#fffefb"/><stop offset="100%" stop-color="${m.belly}"/></radialGradient>
+  <linearGradient id="${id}acc" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${m.acc}"/><stop offset="1" stop-color="${m.c1}"/></linearGradient>
+  <radialGradient id="${id}gl" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="${m.acc}" stop-opacity=".55"/><stop offset="100%" stop-color="${m.acc}" stop-opacity="0"/></radialGradient></defs>`;}
+function flameShape(cx,cy,sz,m){return `<g>
+  <path d="M${cx} ${cy-sz*1.6} C${cx+sz} ${cy-sz*0.4} ${cx+sz*0.8} ${cy+sz} ${cx} ${cy+sz} C${cx-sz*0.8} ${cy+sz} ${cx-sz} ${cy-sz*0.4} ${cx} ${cy-sz*1.6}Z" fill="${m.c2}"/>
+  <path d="M${cx} ${cy-sz*1.1} C${cx+sz*0.7} ${cy-sz*0.2} ${cx+sz*0.55} ${cy+sz*0.7} ${cx} ${cy+sz*0.7} C${cx-sz*0.55} ${cy+sz*0.7} ${cx-sz*0.7} ${cy-sz*0.2} ${cx} ${cy-sz*1.1}Z" fill="${m.c1}"/>
+  <path d="M${cx} ${cy-sz*0.55} C${cx+sz*0.4} ${cy} ${cx+sz*0.3} ${cy+sz*0.45} ${cx} ${cy+sz*0.45} C${cx-sz*0.3} ${cy+sz*0.45} ${cx-sz*0.4} ${cy} ${cx} ${cy-sz*0.55}Z" fill="${m.acc}"/></g>`;}
+function monBack(m,s,id,cx,cy,rx,ry){
+  const wings=s>=2?`<g opacity=".96"><path d="M${cx-rx*0.8} ${cy-6} q-48 -10 -60 26 q36 -2 58 14z" fill="url(#${id}acc)" stroke="${m.c2}" stroke-width="1.6"><animateTransform attributeName="transform" type="rotate" values="-5 ${cx-rx} ${cy};7 ${cx-rx} ${cy};-5 ${cx-rx} ${cy}" dur="2.6s" repeatCount="indefinite"/></path><path d="M${cx+rx*0.8} ${cy-6} q48 -10 60 26 q-36 -2 -58 14z" fill="url(#${id}acc)" stroke="${m.c2}" stroke-width="1.6"><animateTransform attributeName="transform" type="rotate" values="5 ${cx+rx} ${cy};-7 ${cx+rx} ${cy};5 ${cx+rx} ${cy}" dur="2.6s" repeatCount="indefinite"/></path></g>`:'';
+  const tx=cx+rx*0.72, ty=cy+ry*0.66; let tail='';
+  if(m.key==='flame') tail=flameShape(tx+6,ty,14+s*3,m);
+  else if(m.key==='aqua') tail=`<path d="M${tx} ${ty} q24 -8 32 8 q-16 0 -18 12 q-2 -14 -14 -20z" fill="url(#${id}acc)" stroke="${m.c2}" stroke-width="1.6"/>`;
+  else if(m.key==='leaf') tail=`<path d="M${tx-4} ${ty} q28 -2 32 -28 q-24 4 -32 28z" fill="url(#${id}acc)" stroke="${m.c2}" stroke-width="1.6"/>`;
+  else if(m.key==='volt') tail=`<path d="M${tx} ${ty-8} l20 4 -11 9 18 6 -25 16 7 -13 -18 -5z" fill="${m.acc}" stroke="${m.c2}" stroke-width="1.6"/>`;
+  else tail=`<path d="M${tx} ${ty} q28 4 24 28 q-12 -12 -20 -6 q8 -14 -10 -18z" fill="${m.c2}" opacity=".75"/>`;
+  return wings+tail;
+}
+function monCrest(m,s,id,cx,topY){
+  const y=topY-2;
+  if(m.key==='flame') return flameShape(cx,y-8,13+s*2,m);
+  if(m.key==='aqua') return `<path d="M${cx} ${y-22} C${cx+13} ${y-4} ${cx+11} ${y+7} ${cx} ${y+9} C${cx-11} ${y+7} ${cx-13} ${y-4} ${cx} ${y-22}Z" fill="url(#${id}acc)" stroke="${m.c2}" stroke-width="1.6"/>`;
+  if(m.key==='leaf') return `<rect x="${cx-1.6}" y="${y-4}" width="3.2" height="16" rx="1.5" fill="${m.c2}"/><path d="M${cx} ${y+8} q-3 -22 -18 -26 q3 18 18 26z" fill="url(#${id}acc)" stroke="${m.c2}" stroke-width="1.2"/><path d="M${cx} ${y+6} q3 -24 18 -28 q-3 20 -18 28z" fill="url(#${id}acc)" stroke="${m.c2}" stroke-width="1.2"/>`;
+  if(m.key==='volt') return `<path d="M${cx-5} ${y-24} l16 0 -9 13 12 0 -19 21 5 -16 -12 0z" fill="${m.acc}" stroke="${m.c2}" stroke-width="1.3"/>`;
+  return `<path d="M${cx-11} ${y-20} a15 15 0 1 0 15 24 a12 12 0 1 1 -15 -24z" fill="${m.acc}"/>`;
+}
+function drawMon(m,stage,extra){
+  stage=Math.max(0,Math.min(MAXSTAGE,stage));
+  const s=stage, id='m'+m.key+s+Math.random().toString(36).slice(2,6);
+  const cx=100, cy=118, rx=44+s*5, ry=50+s*4, topY=cy-ry, botY=cy+ry;
+  const glow=s>=4?`<circle cx="${cx}" cy="${cy}" r="${rx+34}" fill="url(#${id}gl)"/>`:'';
+  const aura=s>=4?`<circle cx="${cx}" cy="${cy}" r="${rx+26}" fill="none" stroke="${m.acc}" stroke-width="3" opacity=".5"><animate attributeName="r" values="${rx+20};${rx+32};${rx+20}" dur="1.8s" repeatCount="indefinite"/><animate attributeName="opacity" values=".55;.12;.55" dur="1.8s" repeatCount="indefinite"/></circle>`:'';
+  const shadow=`<ellipse cx="${cx}" cy="${botY+16}" rx="${rx*0.82}" ry="${8+s}" fill="#000" opacity=".22"/>`;
+  const back=monBack(m,s,id,cx,cy,rx,ry);
+  const feet=`<ellipse cx="${cx-rx*0.46}" cy="${botY+3}" rx="${13+s}" ry="${8+s*0.6}" fill="${m.c2}"/><ellipse cx="${cx+rx*0.46}" cy="${botY+3}" rx="${13+s}" ry="${8+s*0.6}" fill="${m.c2}"/>`;
+  const arms=`<ellipse cx="${cx-rx-3}" cy="${cy+10}" rx="${10+s}" ry="${15+s}" fill="url(#${id}b)" stroke="${m.c2}" stroke-width="1.5" transform="rotate(20 ${cx-rx} ${cy})"/><ellipse cx="${cx+rx+3}" cy="${cy+10}" rx="${10+s}" ry="${15+s}" fill="url(#${id}b)" stroke="${m.c2}" stroke-width="1.5" transform="rotate(-20 ${cx+rx} ${cy})"/>`;
+  const horns=s>=1?`<path d="M${cx-rx*0.52} ${topY+10} q-4 -17 5 -21 q3 9 1 20z" fill="${m.c2}"/><path d="M${cx+rx*0.52} ${topY+10} q4 -17 -5 -21 q-3 9 -1 20z" fill="${m.c2}"/>`:'';
+  const spikes=s>=3?`<path d="M${cx} ${cy-ry*0.7} l-7 -16 14 0z" fill="${m.c2}"/>`:'';
+  const crown=s>=4?`<path d="M${cx-27} ${topY-4} l7 14 9 -17 9 17 7 -14 -2 21 -34 0z" fill="#ffe14d" stroke="#fff8d0" stroke-width="1.5"/><circle cx="${cx}" cy="${topY-14}" r="3.4" fill="#ff5db1"/>`:'';
+  const crest=monCrest(m,s,id,cx,topY);
+  const body=`<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="url(#${id}b)" stroke="${m.c2}" stroke-width="2.5"/><ellipse cx="${cx-rx*0.3}" cy="${cy-ry*0.34}" rx="${rx*0.32}" ry="${ry*0.24}" fill="#fff" opacity=".25"/>`;
+  const belly=`<ellipse cx="${cx}" cy="${cy+ry*0.2}" rx="${rx*0.54}" ry="${ry*0.48}" fill="url(#${id}belly)" opacity=".95"/>`;
+  const eyeY=cy-ry*0.12, eoff=rx*0.34, er=6.5+s*0.6;
+  const eyes=`<ellipse cx="${cx-eoff}" cy="${eyeY}" rx="${er}" ry="${er+2}" fill="#1a1030"/><ellipse cx="${cx+eoff}" cy="${eyeY}" rx="${er}" ry="${er+2}" fill="#1a1030"/>
+    <circle cx="${cx-eoff+2}" cy="${eyeY-3}" r="2.6" fill="#fff"/><circle cx="${cx+eoff+2}" cy="${eyeY-3}" r="2.6" fill="#fff"/>
+    <circle cx="${cx-eoff-2.5}" cy="${eyeY+2.5}" r="1.2" fill="#fff" opacity=".7"/><circle cx="${cx+eoff-2.5}" cy="${eyeY+2.5}" r="1.2" fill="#fff" opacity=".7"/>`;
+  const cheeks=`<ellipse cx="${cx-rx*0.56}" cy="${eyeY+11}" rx="6.5" ry="4.2" fill="${m.acc}" opacity=".65"/><ellipse cx="${cx+rx*0.56}" cy="${eyeY+11}" rx="6.5" ry="4.2" fill="${m.acc}" opacity=".65"/>`;
+  const mouth=`<path d="M${cx-9} ${eyeY+13} q9 9 18 0" stroke="${m.c2}" stroke-width="2.6" fill="none" stroke-linecap="round"/>`;
+  return `<svg class="bot ${extra||''}" viewBox="0 0 200 200">${monDefs(m,id)}${glow}${aura}${back}${shadow}${feet}${arms}${crest}${horns}${spikes}${crown}${body}${belly}${eyes}${cheeks}${mouth}</svg>`;
+}
+function monSVG(s){return chosenMon!=null?drawMon(MONS[chosenMon],s):bot(s);}
+
+/* ---- 대사 ---- */
+function say(t){const el=document.getElementById('speech');if(!el)return;el.textContent=t;el.classList.remove('say');void el.offsetWidth;el.classList.add('say');}
+function react(){say(REACTS[Math.floor(Math.random()*REACTS.length)]);}
+
+/* ===================== 렌더 ===================== */
+function render(){
+  busy=false;
+  if(screen==='intro') return renderIntro();
+  if(screen==='monselect') return renderMonSelect();
+  if(screen==='survey') return renderQuestion();
+  if(screen==='end') return renderEnd();
+  if(screen==='myresult') return renderMyResult();
+  if(screen==='dash') return renderDash();
+}
+
+function renderIntro(){
+  hud.classList.add('hidden');
+  const n=loadAll().length;
+  stageEl.innerHTML=`${bot(0)}
+    <div class="hero"><div class="kicker">MARKETING · AI ADOPTION</div>
+      <div class="title">FROM PROMPT<br>TO AGENT<small>우리 팀의 AI, 지금 어디까지 왔을까?</small></div>
+      <div class="pill"><span>⏱️ 약 1~2분</span><span>🕹️ 게임형 설문</span><span>🔒 익명</span></div></div>
+    <div class="card" style="margin-top:14px">
+      <div class="qtitle" style="font-size:18px">발표 전, 우리 팀 현황을 모아주세요 🙌</div>
+      <div class="qsub">실제 업무에서 AI를 어떻게 쓰는지, 무엇이 필요한지 — 박진감 있게 기록해봐요. 정답은 없어요!</div>
+      <div class="nav"><button class="btn primary" id="start">게임 시작 ▶</button></div></div>
+    <div class="foot">🔒 <a id="admin">관리자 — 전체 결과 보기</a>${n?` · ${n}건 저장됨`:''}</div>`;
+  document.getElementById('start').onclick=()=>{if(AC&&AC.state==='suspended')AC.resume();sfx.level();screen='monselect';render();};
+  document.getElementById('admin').onclick=openDashboard;
+}
+
+function renderMonSelect(){
+  hud.classList.add('hidden');
+  const cards=MONS.map((m,i)=>`<div class="moncard" data-i="${i}"><div class="monart">${drawMon(m,1)}</div>
+      <div class="monname">${m.emoji} ${m.name}</div><div class="monsub">${m.stages[0]} → ${m.stages[MAXSTAGE]}</div></div>`).join("");
+  stageEl.innerHTML=`<div class="hero" style="margin-top:0"><div class="kicker">CHOOSE YOUR PARTNER</div>
+      <div class="title" style="font-size:24px">나의 디지몬을 선택하세요<small>두 문제마다 함께 진화해요!</small></div></div>
+    <div class="mongrid">${cards}</div><div class="foot">하나를 탭하면 모험이 시작돼요 ▶</div>`;
+  stageEl.querySelectorAll('.moncard').forEach(el=>{
+    el.onclick=()=>{chosenMon=+el.dataset.i;monStage=0;if(AC&&AC.state==='suspended')AC.resume();
+      el.classList.add('picked');sfx.level();confetti(40);setTimeout(()=>{screen='survey';qi=0;render();},520);};
+  });
+}
+
+function updateHUD(){
+  hud.classList.remove('hidden');
+  const pct=Math.round(qi/QS.length*100);
+  document.getElementById('barFill').style.width=pct+'%';
+  document.getElementById('barTxt').textContent=pct+'%';
+  document.getElementById('lvlTxt').textContent='STAGE '+(qi+1);
+  document.getElementById('scoreTxt').textContent=score.toLocaleString()+' XP';
+}
+
+function renderQuestion(){
+  const q=QS[qi]; updateHUD();
+  const line=(chosenMon!=null?MONS[chosenMon].name+': ':'')+(TALK[q.id]||'');
+  let body='';
+  if(q.type==='single') body=optsHTML(q,false);
+  else if(q.type==='multi') body=optsHTML(q,true);
+  else if(q.type==='text') body=`<textarea id="ta" rows="3" placeholder="${q.placeholder||''}"></textarea>`;
+  else if(q.type==='slider') body=`<div class="slideval"><span id="sv">40</span>${q.unit}</div><input type="range" id="rg" min="0" max="100" step="5" value="40"><div class="qsub" style="text-align:center;margin-top:8px">0% ← → 100%</div>`;
+  else if(q.type==='info') body=infoHTML();
+  else if(q.type==='tools') body=toolsHTML();
+
+  const showNext=(q.type!=='single');
+  const nextLabel=editing?'수정 완료 ✓':(qi===QS.length-1?'제출하기 🏁':'다음 →');
+  stageEl.innerHTML=`${monSVG(monStage)}<div class="speech" id="speech">${line}</div>
+    <div class="card"><div class="qmeta">Q${qi+1}/${QS.length} · ${q.meta}</div>
+      <div class="qtitle">${q.title}</div><div class="qsub">${q.sub||''}</div>${body}
+      <div class="nav">
+        <button class="btn ghost" id="back">← 이전</button>
+        ${showNext?`<button class="btn primary" id="next" ${needGate(q)?'disabled':''}>${nextLabel}</button>`:''}
+      </div>
+      ${q.type==='single'?'<div class="small">답을 누르면 바로 다음으로 넘어가요</div>':''}
+    </div>`;
+  wire(q);
+}
+
+function optsHTML(q,multi){
+  return `<div class="opts">`+q.options.map((o,i)=>
+    `<div class="opt" data-i="${i}"><span class="emo">${o[0]}</span><span class="olab">${o[1]}</span><span class="chk">✔</span></div>`
+  ).join("")+`</div>`;
+}
+function infoHTML(){
+  const team=`<div class="grplabel">🩺 담당 팀</div><div class="opts">`+TEAMS.map((o,i)=>
+    `<div class="opt teamopt" data-i="${i}"><span class="emo">${o[0]}</span><span class="olab">${o[1]}</span><span class="chk">✔</span></div>`).join("")+`</div>`;
+  const deg=`<div class="grplabel" style="margin-top:14px">🎓 AI Degreed 수료 등급</div><div class="opts">`+DEGREED.map((o,i)=>
+    `<div class="opt degopt" data-i="${i}"><span class="emo">${o[0]}</span><span class="olab">${o[1]}</span><span class="chk">✔</span></div>`).join("")+`</div>`;
+  return team+deg;
+}
+function toolsHTML(){
+  answers.tools=answers.tools||[]; answers.toolsBilling=answers.toolsBilling||{}; answers.toolsEtc=answers.toolsEtc||'';
+  const seg=(name,bill)=>`<span class="billseg"><button class="bseg free ${bill!=='유료'?'active':''}" data-name="${name}" data-v="무료">무료</button><button class="bseg paid ${bill==='유료'?'active':''}" data-name="${name}" data-v="유료">유료</button></span>`;
+  const rows=TOOL_OPTS.map((o,i)=>{
+    const name=o[1], fixed=o[2]==='fixed';
+    const sel=answers.tools.includes(name);
+    const bill=answers.toolsBilling[name]||'무료';
+    const right=fixed?`<span class="billfix">무료·회사제공</span>`:seg(name,bill);
+    return `<div class="opt toolopt ${sel?'sel':''}" data-name="${name}" data-fixed="${fixed}"><span class="emo">${o[0]}</span><span class="olab">${name}</span>${right}<span class="chk">✔</span></div>`;
+  }).join("");
+  const etcBill=answers.toolsBilling['기타']||'무료';
+  const etc=`<div class="opt etcrow"><span class="emo">🛠️</span>
+     <input class="etcin" id="etcin" placeholder="기타 직접 입력" value="${(answers.toolsEtc||'').replace(/"/g,'&quot;')}">
+     ${seg('기타',etcBill)}</div>`;
+  return `<div class="opts">${rows}${etc}</div>`;
+}
+
+function needGate(q){
+  if(editing) return false;
+  if(q.optional) return false;
+  if(q.type==='single') return !answers[q.id];
+  if(q.type==='multi') return !(answers[q.id]&&answers[q.id].length);
+  if(q.type==='text') return !(answers[q.id]&&answers[q.id].trim());
+  if(q.type==='info') return !(answers.team&&answers.degreed);
+  if(q.type==='tools') return !((answers.tools&&answers.tools.length)||(answers.toolsEtc&&answers.toolsEtc.trim()));
+  return false;
+}
+
+function wire(q){
+  const nb=document.getElementById('next');
+  const refresh=()=>{if(nb)nb.disabled=needGate(q)};
+  const back=document.getElementById('back');
+  if(back) back.onclick=()=>{if(busy)return;sfx.tap();goBack();};
+
+  if(q.type==='single'||q.type==='multi'){
+    stageEl.querySelectorAll('.opt').forEach(el=>{
+      el.onclick=()=>{if(busy&&q.type==='single')return;const i=+el.dataset.i;
+        if(q.type==='single'){
+          stageEl.querySelectorAll('.opt').forEach(o=>o.classList.remove('sel'));
+          el.classList.add('sel');answers[q.id]=q.options[i][1];sfx.pick();busy=true;
+          setTimeout(()=>advanceFromQuestion(),230); // 단일: 클릭 즉시 다음
+        }else{
+          el.classList.toggle('sel');const on=el.classList.contains('sel');
+          const s=new Set(answers[q.id]||[]);on?s.add(q.options[i][1]):s.delete(q.options[i][1]);
+          answers[q.id]=[...s];sfx.tap();if(on&&Math.random()<0.6)react();refresh();
+        }};
+    });
+    if(answers[q.id]){
+      stageEl.querySelectorAll('.opt').forEach((o,i)=>{
+        const v=q.options[i][1];
+        if(q.type==='single'?answers[q.id]===v:answers[q.id].includes(v)) o.classList.add('sel');
+      });
+    }
+  }
+  if(q.type==='text'){const ta=document.getElementById('ta');if(answers[q.id])ta.value=answers[q.id];ta.oninput=()=>{answers[q.id]=ta.value;refresh();};}
+  if(q.type==='slider'){const rg=document.getElementById('rg');if(answers[q.id]!=null)rg.value=answers[q.id];else answers[q.id]=40;const sv=document.getElementById('sv');const upd=()=>{sv.textContent=rg.value;rg.style.setProperty('--p',rg.value+'%');answers[q.id]=+rg.value;};rg.oninput=()=>{upd();sfx.tap();};upd();}
+  if(q.type==='info'){
+    const wireGroup=(cls,arr,key)=>{stageEl.querySelectorAll(cls).forEach(el=>{el.onclick=()=>{
+      stageEl.querySelectorAll(cls).forEach(o=>o.classList.remove('sel'));el.classList.add('sel');
+      answers[key]=arr[+el.dataset.i][1];sfx.pick();refresh();};});
+      if(answers[key])stageEl.querySelectorAll(cls).forEach((o,i)=>{if(arr[i][1]===answers[key])o.classList.add('sel')});};
+    wireGroup('.teamopt',TEAMS,'team'); wireGroup('.degopt',DEGREED,'degreed');
+  }
+  if(q.type==='tools'){
+    stageEl.querySelectorAll('.toolopt').forEach(el=>{
+      el.onclick=()=>{const name=el.dataset.name;const s=new Set(answers.tools||[]);
+        el.classList.toggle('sel');el.classList.contains('sel')?s.add(name):s.delete(name);
+        answers.tools=[...s];sfx.tap();refresh();};
+    });
+    stageEl.querySelectorAll('.bseg').forEach(b=>{
+      b.onclick=(e)=>{e.stopPropagation();const name=b.dataset.name,v=b.dataset.v;
+        answers.toolsBilling[name]=v;
+        b.parentNode.querySelectorAll('.bseg').forEach(x=>x.classList.toggle('active',x.dataset.v===v));
+        if(name!=='기타'){const s=new Set(answers.tools||[]);s.add(name);answers.tools=[...s];
+          const row=[...stageEl.querySelectorAll('.toolopt')].find(r=>r.dataset.name===name);if(row)row.classList.add('sel');}
+        sfx.tap();refresh();};
+    });
+    const etc=document.getElementById('etcin');
+    if(etc) etc.oninput=()=>{answers.toolsEtc=etc.value;refresh();};
+  }
+  if(nb) nb.onclick=()=>{ if(busy||needGate(q))return; busy=true; advanceFromQuestion(); };
+}
+
+/* ---- 네비게이션 ---- */
+function goBack(){
+  if(editing){editing=false;screen='myresult';render();return;}
+  if(qi===0){screen='monselect';render();return;}
+  qi--; screen='survey'; render();
+}
+function advanceFromQuestion(){
+  if(editing){editing=false;updateSaved();screen='myresult';render();return;}
+  const answeredId=QS[qi].id, ord=qi+1;
+  const newStage=Math.min(MAXSTAGE,Math.floor(ord/2));
+  const finishStep=()=>{ qi++; if(qi>=QS.length) finishSurvey(); else {screen='survey';render();} };
+  const maybeQuiz=()=>{ if(answeredId===QUIZ_AFTER && !quizShown){quizShown=true;showQuizPopup(finishStep);} else finishStep(); };
+  score+=120; sfx.next();
+  if(chosenMon!=null && newStage>monStage){ evolveScene(monStage,newStage,()=>{monStage=newStage;maybeQuiz();}); }
+  else maybeQuiz();
+}
+
+/* ---- 깜짝 퀴즈 (팝업) ---- */
+function showQuizPopup(done){
+  quizIdx=0; quizMarks=[];
+  const ov=document.createElement('div'); ov.className='pop'; document.body.appendChild(ov);
+  sfx.level(); confetti(20); toast('⚡ 깜짝 퀴즈!');
+  drawQuizCard(ov,done);
+  requestAnimationFrame(()=>ov.classList.add('go'));
+}
+function drawQuizCard(ov,done){
+  if(quizIdx>=QUIZ_TERMS.length) return drawQuizReveal(ov,done);
+  const t=QUIZ_TERMS[quizIdx];
+  const dots=QUIZ_TERMS.map((_,i)=>`<i class="${i<quizIdx?'done':i===quizIdx?'now':''}"></i>`).join("");
+  ov.innerHTML=`<div class="popcard">
+    <div class="qmeta" style="text-align:center">⚡ SURPRISE QUIZ ${quizIdx+1}/${QUIZ_TERMS.length}</div>
+    <div class="dots">${dots}</div>
+    <div class="term">${t[0]}</div>
+    <div class="qsub" style="text-align:center">이 용어, 아세요? (정답·뜻은 마지막에 공개)</div>
+    <div class="nav"><button class="btn primary" id="qy">✅ 알아요</button><button class="btn ghost" style="flex:1" id="qn">🤔 몰라요</button></div></div>`;
+  document.getElementById('qy').onclick=()=>{quizMarks[quizIdx]=true;sfx.pick();confetti(8);quizIdx++;drawQuizCard(ov,done);};
+  document.getElementById('qn').onclick=()=>{quizMarks[quizIdx]=false;sfx.tap();quizIdx++;drawQuizCard(ov,done);};
+}
+function drawQuizReveal(ov,done){
+  const known=quizMarks.filter(Boolean).length;
+  answers.quizMarks=quizMarks.slice(); answers.quizKnown=known;
+  confetti(60); sfx.win();
+  const list=QUIZ_TERMS.map((t,i)=>`<div class="reveal ${quizMarks[i]?'k':'u'}"><div class="rt"><span class="tag">${quizMarks[i]?'✅ 알아요':'🤔 몰라요'}</span> <b>${t[0]}</b></div><div class="rd">${t[1]}</div></div>`).join("");
+  ov.innerHTML=`<div class="popcard"><div class="qmeta" style="text-align:center">QUIZ RESULT · 내 AI 용어 지수</div>
+    <div class="term">${known} / ${QUIZ_TERMS.length}</div>
+    <div class="qsub" style="text-align:center">아래에서 각 용어의 진짜 뜻을 확인해 보세요 👇</div>
+    <div class="reveals">${list}</div>
+    <div class="nav"><button class="btn primary" id="qdone">설문 계속하기 ▶</button></div></div>`;
+  document.getElementById('qdone').onclick=()=>{const g=known*40+80;score+=g;toast(`+${g} XP`);ov.classList.add('out');setTimeout(()=>{ov.remove();done();},250);};
+}
+
+/* ---- 진화 연출 ---- */
+function evolveScene(from,to,done){
+  const m=MONS[chosenMon];
+  const ov=document.createElement('div'); ov.className='evo';
+  ov.innerHTML=`<div class="evoflash"></div><div class="evobeams"></div>
+    <div class="evoinner"><div class="evolabel">E V O L U T I O N</div>
+      <div class="evomon spin" id="evomon">${drawMon(m,from,'spin')}</div>
+      <div class="evoname" id="evoname">${m.stages[from]}</div></div>`;
+  document.body.appendChild(ov); evoJingle(); confetti(60);
+  requestAnimationFrame(()=>ov.classList.add('go'));
+  const swap=setTimeout(()=>{
+    const em=document.getElementById('evomon'),en=document.getElementById('evoname');
+    if(em){em.className='evomon burst';em.innerHTML=drawMon(m,to,'burst');}
+    if(en){en.innerHTML=`<span style="opacity:.55;font-size:.6em">${m.stages[from]} →</span> ${m.stages[to]}`;}
+    ov.classList.add('done'); sfx.win(); confetti(120);
+  },1250);
+  let closed=false;
+  const close=()=>{if(closed)return;closed=true;clearTimeout(swap);clearTimeout(auto);ov.classList.add('out');setTimeout(()=>{ov.remove();done();},380);};
+  ov.onclick=close; const auto=setTimeout(close,2900);
+}
+
+/* ---- 제출 / 결과 ---- */
+function rankFor(s){if(s>=1400)return["AI AGENT MASTER","🤖"];if(s>=1000)return["AUTOMATION HERO","⚙️"];if(s>=600)return["PROMPT RANGER","✨"];return["RISING ROOKIE","🌱"];}
+function payload(){
+  return {...answers,_score:score,_rank:rankFor(score)[0],_partner:(chosenMon!=null?MONS[chosenMon].stages[MAXSTAGE]:''),_ts:answers._ts};
+}
+function remotePush(rec){
+  if(!REMOTE_URL) return;
+  try{
+    fetch(REMOTE_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(rec)});
+  }catch(e){}
+}
+function finishSurvey(){
+  answers._ts=answers._ts||new Date().toISOString();
+  const rec=payload();
+  const all=loadAll(); savedIdx=all.length; all.push(rec); saveAll(all);
+  remotePush(rec);
+  screen='end'; render();
+}
+function updateSaved(){ if(savedIdx<0)return; const all=loadAll(); if(all[savedIdx]) all[savedIdx]=payload(); saveAll(all); }
+
+function renderEnd(){
+  hud.classList.add('hidden');
+  const [rank,emo]=rankFor(score);
+  confetti(80); sfx.win();
+  stageEl.innerHTML=`${monSVG(MAXSTAGE)}<div class="speech">🎉 클리어! 응답이 저장됐어요!</div>
+    <div class="card result"><div class="qmeta">YOUR RANK</div><div class="rank">${emo} ${rank}</div>
+      ${chosenMon!=null?`<div class="qsub" style="text-align:center;margin-top:-2px">파트너 ${MONS[chosenMon].emoji} <b>${MONS[chosenMon].stages[MAXSTAGE]}</b> 와 함께 클리어!</div>`:''}
+      <div class="statline"><div class="stat"><b>${score.toLocaleString()}</b><small>TOTAL XP</small></div>
+        <div class="stat"><b>${(answers.expect??0)}%</b><small>기대 절감</small></div>
+        <div class="stat"><b>${(answers.quizKnown??0)}/5</b><small>용어 지수</small></div></div>
+      <div class="nav"><button class="btn primary" id="myres">📋 내 결과 보기 / 수정</button></div>
+      <div class="small">제출해주셔서 감사합니다. 발표 때 인사이트로 만나요! 💜</div>
+    </div>`;
+  document.getElementById('myres').onclick=()=>{screen='myresult';render();};
+}
+
+function fmtAnswer(q){
+  if(q.type==='info') return `${answers.team||'-'} · Degreed ${answers.degreed||'-'}`;
+  if(q.type==='single') return answers[q.id]||'(미응답)';
+  if(q.type==='multi') return (answers[q.id]&&answers[q.id].length)?answers[q.id].join(', '):'(미선택)';
+  if(q.type==='slider') return (answers[q.id]??0)+'%';
+  if(q.type==='text') return (answers[q.id]&&answers[q.id].trim())?answers[q.id]:'(미작성)';
+  if(q.type==='tools'){
+    const parts=(answers.tools||[]).map(n=>`${n}(${(answers.toolsBilling||{})[n]||'무료'})`);
+    if(answers.toolsEtc&&answers.toolsEtc.trim()) parts.push(`기타: ${answers.toolsEtc}(${(answers.toolsBilling||{})['기타']||'무료'})`);
+    return parts.length?parts.join(', '):'(미선택)';
+  }
+  return '';
+}
+function renderMyResult(){
+  hud.classList.add('hidden');
+  const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  const items=QS.map((q,i)=>{
+    let extra='';
+    if(q.id==='azcombo'){const ok=answers.azcombo===q.correct;extra=` <span class="${ok?'ok':'no'}">${ok?'✓ 정답':'✗ 오답'}</span>`;}
+    return `<div class="mritem"><div class="mrtop"><div style="flex:1;min-width:0">
+        <div class="mrq">Q${i+1}. ${esc(q.title)}${extra}</div>
+        <div class="mra">${esc(fmtAnswer(q))}</div></div>
+        <button class="editbtn" data-i="${i}">수정</button></div></div>`;
+  }).join("");
+  const quizSec = answers.quizMarks ? `<div class="block"><h3>⚡ 깜짝 퀴즈 (수정 불가 · 정답 공개)</h3>
+    ${QUIZ_TERMS.map((t,i)=>`<div class="reveal ${answers.quizMarks[i]?'k':'u'}"><div class="rt"><span class="tag">${answers.quizMarks[i]?'✅ 알아요':'🤔 몰라요'}</span> <b>${esc(t[0])}</b></div><div class="rd">${esc(t[1])}</div></div>`).join("")}
+    </div>` : '';
+  stageEl.innerHTML=`<div class="mr"><div class="dhead"><h2>📋 내 응답 결과</h2></div>
+    <div class="qsub" style="margin-bottom:12px">각 문항의 <b>수정</b>을 누르면 답을 바꿀 수 있어요. 변경은 자동 저장됩니다.</div>
+    ${items}${quizSec}
+    <div class="nav"><button class="btn primary" id="home">홈으로 ▶</button></div></div>`;
+  stageEl.querySelectorAll('.editbtn').forEach(b=>{b.onclick=()=>{editing=true;qi=+b.dataset.i;screen='survey';render();};});
+  document.getElementById('home').onclick=()=>resetAll();
+}
+
+function resetAll(){
+  screen='intro';qi=0;score=0;answers={};chosenMon=null;monStage=0;quizIdx=0;quizMarks=[];quizShown=false;editing=false;savedIdx=-1;render();
+}
+
+/* ===================== 관리자 대시보드 ===================== */
+function openDashboard(){
+  const pin=window.prompt('관리자 PIN을 입력하세요');
+  if(pin===null) return;
+  if(pin!==ADMIN_PIN){ toast('PIN이 올바르지 않습니다'); return; }
+  screen='dash'; render();
+}
+function tallyList(rows,id,options){
+  const map={}; options.forEach(o=>map[o[1]]=0);
+  rows.forEach(r=>{const v=r[id];if(Array.isArray(v))v.forEach(x=>{if(x in map)map[x]++});else if(v in map)map[v]++;});
+  return Object.entries(map).sort((a,b)=>b[1]-a[1]);
+}
+function tallyTools(rows){
+  const map={};
+  rows.forEach(r=>{(r.tools||[]).forEach(n=>{map[n]=(map[n]||0)+1});if(r.toolsEtc&&String(r.toolsEtc).trim())map['기타']=(map['기타']||0)+1;});
+  return Object.entries(map).sort((a,b)=>b[1]-a[1]);
+}
+function barBlock(title,pairs,denom,note){
+  const max=Math.max(1,...pairs.map(p=>p[1]));
+  const rows=pairs.map(([k,v])=>{const pct=denom?Math.round(v/denom*100):0;
+    return `<div class="brow"><div class="lab"><span>${k}</span><small>${v}명${denom?` · ${pct}%`:''}</small></div><div class="track"><i style="width:${Math.round(v/max*100)}%"></i></div></div>`;}).join("");
+  return `<div class="block"><h3>${title}${note?` <span style="color:var(--muted);font-weight:700">${note}</span>`:''}</h3>${rows}</div>`;
+}
+function quoteBlock(title,arr){
+  const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  if(!arr.length) return `<div class="block"><h3>${title}</h3><div class="qsub" style="margin:0">아직 응답 없음</div></div>`;
+  return `<div class="block"><h3>${title} <span style="color:var(--muted);font-weight:700">(${arr.length})</span></h3><div class="quotes">${arr.map(s=>`<div class="quote">“${esc(String(s).trim())}”</div>`).join("")}</div></div>`;
+}
+function renderDash(){
+  hud.classList.add('hidden');
+  const rows=loadAll(), n=rows.length;
+  let charts;
+  if(!n){ charts=`<div class="empty">아직 응답이 없어요.<br>설문을 끝내거나 결과 코드를 붙여넣어 보세요.</div>`; }
+  else{
+    const avg=Math.round(rows.reduce((s,r)=>s+(+r.expect||0),0)/n);
+    const agentN=rows.filter(r=>typeof r.level==='string'&&r.level.indexOf('Lv.4')>=0).length;
+    const azCorrect=rows.filter(r=>r.azcombo==='AZ ChatGPT · Talksiri · Copilot · ASA').length;
+    const qz=rows.filter(r=>r.quizKnown!=null);
+    const avgQ=qz.length?(qz.reduce((s,r)=>s+(+r.quizKnown||0),0)/qz.length).toFixed(1):'–';
+    charts=`<div class="block" style="display:flex;gap:12px;justify-content:space-around;text-align:center;flex-wrap:wrap">
+        <div><div class="big">${n}</div><small style="color:var(--muted);font-weight:800">총 응답</small></div>
+        <div><div class="big">${avg}%</div><small style="color:var(--muted);font-weight:800">평균 기대 절감</small></div>
+        <div><div class="big">${agentN}</div><small style="color:var(--muted);font-weight:800">에이전트(Lv.4)</small></div>
+        <div><div class="big">${avgQ}</div><small style="color:var(--muted);font-weight:800">용어 지수/5</small></div>
+        <div><div class="big">${Math.round(azCorrect/n*100)}%</div><small style="color:var(--muted);font-weight:800">AZ 조합 정답률</small></div>
+      </div>
+      ${barBlock("🩺 팀 분포",tallyList(rows,'team',TEAMS),n)}
+      ${barBlock("🎓 Degreed 등급",tallyList(rows,'degreed',DEGREED),n)}
+      ${barBlock("⚡ AI 사용 빈도",tallyList(rows,'freq',QS.find(q=>q.id==='freq').options),n)}
+      ${barBlock("🧬 활용 레벨",tallyList(rows,'level',QS.find(q=>q.id==='level').options),n)}
+      ${barBlock("🎒 쓰는 AI 툴",tallyTools(rows),n,"(복수응답)")}
+      ${barBlock("🥊 실제 활용 업무",tallyList(rows,'usecase',QS.find(q=>q.id==='usecase').options),n,"(복수응답)")}
+      ${barBlock("🛡️ 가장 큰 장벽",tallyList(rows,'blocker',QS.find(q=>q.id==='blocker').options),n,"(복수응답)")}
+      ${barBlock("🌳 배우고 싶은 스킬",tallyList(rows,'learn',QS.find(q=>q.id==='learn').options),n)}
+      ${barBlock("🎯 세션에서 얻고 싶은 것",tallyList(rows,'goal',QS.find(q=>q.id==='goal').options),n,"(복수응답)")}
+      ${quoteBlock("🪄 맡기고 싶은 업무",rows.map(r=>r.delegate).filter(s=>s&&String(s).trim()))}`;
+  }
+  stageEl.innerHTML=`<div class="dash"><div class="dhead"><h2>📊 전체 결과 (관리자)</h2>
+      <div class="chips"><span class="chip" id="refresh">↻ 새로고침</span><span class="chip" id="exp">⬇ CSV</span><span class="chip bad" id="clear">🗑 초기화</span></div></div>
+    ${charts}
+    <div class="block"><h3>➕ 결과 코드 합치기</h3>
+      <div class="qsub" style="margin:0 0 8px">팀원이 보내준 결과 코드를 붙여넣고(여러 개는 줄바꿈) 가져오세요.</div>
+      <textarea id="imp" rows="3" placeholder="여기에 결과 코드 붙여넣기…"></textarea>
+      <div class="nav"><button class="btn primary" id="impBtn">가져오기</button></div></div>
+    <div class="foot"><a id="home2">← 홈으로</a></div></div>`;
+  setTimeout(()=>stageEl.querySelectorAll('.track>i').forEach(el=>el.style.width=el.style.width),30);
+  document.getElementById('home2').onclick=()=>resetAll();
+  document.getElementById('refresh').onclick=()=>render();
+  document.getElementById('clear').onclick=()=>{if(confirm('저장된 모든 응답을 삭제할까요? 되돌릴 수 없어요.')){saveAll([]);render();}};
+  document.getElementById('exp').onclick=()=>exportCSV();
+  document.getElementById('impBtn').onclick=()=>{const v=document.getElementById('imp').value;const c=importCode(v);toast(c?`+${c}명 추가`:'코드 인식 실패');render();};
+}
+function importCode(str){let ok=0;str.split(/[\s,]+/).filter(Boolean).forEach(c=>{try{const o=JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(c)))));if(o&&typeof o==='object'){const a=loadAll();a.push(o);saveAll(a);ok++;}}catch(e){}});return ok;}
+function exportCSV(){
+  const rows=loadAll();if(!rows.length){toast('응답 없음');return;}
+  const cols=['_ts','team','degreed','freq','azcombo','tools','toolsEtc','usecase','level','blocker','learn','delegate','expect','goal','quizKnown','_score','_rank','_partner'];
+  const head=['제출시각','팀','Degreed','빈도','AZ조합선택','툴','기타툴','활용업무','레벨','장벽','배우고싶은것','맡기고싶은업무','기대절감','세션기대','용어지수','점수','랭크','파트너'];
+  const esc=v=>{if(v==null)v='';if(Array.isArray(v))v=v.join(' / ');v=String(v).replace(/"/g,'""');return `"${v}"`;};
+  const csv=[head.join(",")].concat(rows.map(r=>cols.map(c=>esc(r[c])).join(","))).join("\r\n");
+  const blob=new Blob(["﻿"+csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='ai-survey-results.csv';a.click();sfx.pick();
+}
+
+/* ---- fx ---- */
+function toast(t){const el=document.getElementById('toast');el.textContent=t;el.classList.remove('show');void el.offsetWidth;el.classList.add('show');}
+function confetti(n){const fx=document.getElementById('fx');const cols=['#00f0ff','#ff3df0','#ffe14d','#9dff3d','#fff'];for(let i=0;i<n;i++){const c=document.createElement('div');const s=6+Math.random()*8;c.style.cssText=`position:absolute;top:-20px;left:${Math.random()*100}%;width:${s}px;height:${s*0.5}px;background:${cols[i%cols.length]};border-radius:2px;opacity:.95;transform:rotate(${Math.random()*360}deg)`;fx.appendChild(c);const dur=1200+Math.random()*1400,dx=(Math.random()-.5)*240;c.animate([{transform:`translate(0,0) rotate(0)`},{transform:`translate(${dx}px,${window.innerHeight+60}px) rotate(${720*(Math.random()>.5?1:-1)}deg)`}],{duration:dur,easing:'cubic-bezier(.2,.6,.4,1)'}).onfinish=()=>c.remove();}}
+
+document.getElementById('mute').onclick=function(){muted=!muted;this.textContent=muted?'🔇':'🔊';};
+
+if(/#(result|dash|admin)/i.test(location.hash)) { openDashboard(); }
+render();
+</script>
+</body>
+</html>

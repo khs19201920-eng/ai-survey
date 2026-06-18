@@ -241,7 +241,7 @@ const QUIZ_TERMS=[
 
 const QS=[
   {id:'info', type:'info', meta:'PLAYER PROFILE', title:'설문자 정보를 입력해주세요',
-   sub:'담당 팀과 나의 AI Degreed 수료 등급을 선택한 뒤 [다음]을 눌러주세요'},
+   sub:'담당 팀을 선택한 뒤 [다음]을 눌러주세요'},
   {id:'freq', type:'single', meta:'WARM-UP', title:'AI, 얼마나 자주 쓰시나요?', sub:'솔직하게요! 점수엔 영향 없어요',
    options:[["🔥","하루에도 여러 번"],["☀️","거의 매일"],["📆","주 몇 번"],["🌙","가끔 생각날 때"],["🧊","거의 안 써"]]},
   {id:'azcombo', type:'single', meta:'AZ QUIZ', correct:'AZ ChatGPT · Talksiri · Copilot · ASA',
@@ -479,9 +479,7 @@ function optsHTML(q,multi){
 function infoHTML(){
   const team=`<div class="grplabel">🩺 담당 팀</div><div class="opts">`+TEAMS.map((o,i)=>
     `<div class="opt teamopt" data-i="${i}"><span class="emo">${o[0]}</span><span class="olab">${o[1]}</span><span class="chk">✔</span></div>`).join("")+`</div>`;
-  const deg=`<div class="grplabel" style="margin-top:14px">🎓 AI Degreed 수료 등급</div><div class="opts">`+DEGREED.map((o,i)=>
-    `<div class="opt degopt" data-i="${i}"><span class="emo">${o[0]}</span><span class="olab">${o[1]}</span><span class="chk">✔</span></div>`).join("")+`</div>`;
-  return team+deg;
+  return team;
 }
 function toolsHTML(){
   answers.tools=answers.tools||[]; answers.toolsBilling=answers.toolsBilling||{}; answers.toolsEtc=answers.toolsEtc||'';
@@ -506,7 +504,7 @@ function needGate(q){
   if(q.type==='single') return !answers[q.id];
   if(q.type==='multi') return !(answers[q.id]&&answers[q.id].length);
   if(q.type==='text') return !(answers[q.id]&&answers[q.id].trim());
-  if(q.type==='info') return !(answers.team&&answers.degreed);
+  if(q.type==='info') return !answers.team;
   if(q.type==='tools') return !((answers.tools&&answers.tools.length)||(answers.toolsEtc&&answers.toolsEtc.trim()));
   return false;
 }
@@ -544,7 +542,7 @@ function wire(q){
       stageEl.querySelectorAll(cls).forEach(o=>o.classList.remove('sel'));el.classList.add('sel');
       answers[key]=arr[+el.dataset.i][1];sfx.pick();refresh();};});
       if(answers[key])stageEl.querySelectorAll(cls).forEach((o,i)=>{if(arr[i][1]===answers[key])o.classList.add('sel')});};
-    wireGroup('.teamopt',TEAMS,'team'); wireGroup('.degopt',DEGREED,'degreed');
+    wireGroup('.teamopt',TEAMS,'team');
   }
   if(q.type==='tools'){
     stageEl.querySelectorAll('.toolopt').forEach(el=>{
@@ -675,7 +673,7 @@ function renderEnd(){
 }
 
 function fmtAnswer(q){
-  if(q.type==='info') return `${answers.team||'-'} · Degreed ${answers.degreed||'-'}`;
+  if(q.type==='info') return `${answers.team||'-'}`;
   if(q.type==='single') return answers[q.id]||'(미응답)';
   if(q.type==='multi') return (answers[q.id]&&answers[q.id].length)?answers[q.id].join(', '):'(미선택)';
   if(q.type==='slider') return (answers[q.id]??0)+'%';
@@ -760,7 +758,6 @@ function renderDash(){
         <div><div class="big">${Math.round(azCorrect/n*100)}%</div><small style="color:var(--muted);font-weight:800">AZ 조합 정답률</small></div>
       </div>
       ${barBlock("🩺 팀 분포",tallyList(rows,'team',TEAMS),n)}
-      ${barBlock("🎓 Degreed 등급",tallyList(rows,'degreed',DEGREED),n)}
       ${barBlock("⚡ AI 사용 빈도",tallyList(rows,'freq',QS.find(q=>q.id==='freq').options),n)}
       ${barBlock("🧬 활용 레벨",tallyList(rows,'level',QS.find(q=>q.id==='level').options),n)}
       ${barBlock("🎒 쓰는 AI 툴",tallyTools(rows),n,"(복수응답)")}

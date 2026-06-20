@@ -254,7 +254,7 @@ const QS=[
    ]},
   {id:'tools', type:'tools', meta:'INVENTORY', title:'무기고엔 어떤 AI가 있으신가요?',
    sub:'쓰시는 걸 모두 고르고, 옆 버튼으로 유료/무료를 표시해주세요 (복수 선택)'},
-  {id:'usecase', type:'multi', meta:'COMBO', title:'실제 업무에서 어디에 쓰시나요?', sub:'제약 마케팅 실전 활용 (복수 선택)',
+  {id:'usecase', type:'multi', etc:true, meta:'COMBO', title:'실제 업무에서 어디에 쓰시나요?', sub:'제약 마케팅 실전 활용 (복수 선택)',
    options:[
      ["📑","제품 디테일·슬라이드 제작"],
      ["🔬","논문·임상 데이터 리서치 요약"],
@@ -275,7 +275,7 @@ const QS=[
      ["🎯","결과 품질 / 신뢰도"],["✏️","프롬프트 잘 못 씀"],["🗺️","어디에 써야 할지 모름"],
      ["🔒","보안 / 규정"],["⏳","쓸 시간이 없음"],["🌀","툴이 너무 많아 혼란"]
    ]},
-  {id:'learn', type:'single', meta:'SKILL TREE', title:'가장 키우고 싶은 스킬은 무엇인가요?', sub:'다음 레벨업에 찍을 한 가지',
+  {id:'learn', type:'single', etc:true, meta:'SKILL TREE', title:'가장 키우고 싶은 스킬은 무엇인가요?', sub:'다음 레벨업에 찍을 한 가지',
    options:[
      ["✏️","프롬프트 잘 쓰기"],["🔁","반복 업무 자동화"],["🤖","에이전트 / 워크플로우 구축"],["📊","데이터 분석"],["🎨","이미지 생성"]
    ]},
@@ -283,7 +283,7 @@ const QS=[
    sub:'가장 맡기고 싶은 업무 한 가지를 적어주세요 (선택 · 안 써도 넘어갈 수 있어요)',
    placeholder:'예) 매주 경쟁사 콘텐츠 모니터링하고 요약 리포트 만들어주기'},
   {id:'expect', type:'slider', meta:'POWER LEVEL', title:'AI가 내 업무 시간을 얼마나 줄여줄까요?', sub:'기대치를 끌어올려 주세요!', unit:'%'},
-  {id:'goal', type:'multi', optional:true, meta:'FINAL', title:'이번 OBU cycle meeting MKT AI session에서 얻어가고 싶은 것은?',
+  {id:'goal', type:'multi', optional:true, etc:true, meta:'FINAL', title:'이번 OBU cycle meeting MKT AI session에서 얻어가고 싶은 것은?',
    sub:'원하는 걸 모두 골라주세요 (선택)',
    options:[
      ["⚡","바로 쓸 프롬프트·실전 팁"],
@@ -457,7 +457,7 @@ function renderQuestion(){
   else if(q.type==='info') body=infoHTML();
   else if(q.type==='tools') body=toolsHTML();
 
-  const showNext=(q.type!=='single');
+  const showNext=(q.type!=='single')||(q.etc&&answers[q.id+'_etcOn']);
   const nextLabel=editing?'수정 완료 ✓':(qi===QS.length-1?'제출하기 🏁':'다음 →');
   stageEl.innerHTML=`${monSVG(monStage)}<div class="speech" id="speech">${line}</div>
     <div class="card"><div class="qmeta">Q${qi+1}/${QS.length} · ${q.meta}</div>
@@ -466,15 +466,23 @@ function renderQuestion(){
         <button class="btn ghost" id="back">← 이전</button>
         ${showNext?`<button class="btn primary" id="next" ${needGate(q)?'disabled':''}>${nextLabel}</button>`:''}
       </div>
-      ${q.type==='single'?'<div class="small">답을 누르면 바로 다음으로 넘어가요</div>':''}
+      ${q.type==='single'&&!(q.etc&&answers[q.id+'_etcOn'])?'<div class="small">답을 누르면 바로 다음으로 넘어가요</div>':''}
     </div>`;
   wire(q);
 }
 
+function etcLabel(key){const t=(answers[key+'_etcText']||'').trim();return t?('기타: '+t):'기타';}
 function optsHTML(q,multi){
-  return `<div class="opts">`+q.options.map((o,i)=>
+  let h=`<div class="opts">`+q.options.map((o,i)=>
     `<div class="opt" data-i="${i}"><span class="emo">${o[0]}</span><span class="olab">${o[1]}</span><span class="chk">✔</span></div>`
-  ).join("")+`</div>`;
+  ).join("");
+  if(q.etc){
+    const on=!!answers[q.id+'_etcOn'];
+    const t=(answers[q.id+'_etcText']||'').replace(/"/g,'&quot;');
+    h+=`<div class="opt etcopt ${on?'sel':''}" data-etc="1"><span class="emo">🛠️</span><span class="olab">기타 (직접 작성)</span><span class="chk">✔</span></div>`+
+       `<input class="etcin ${on?'':'hidden'}" id="qetc" style="flex:none;width:100%" placeholder="기타 내용을 직접 적어주세요" value="${t}">`;
+  }
+  return h+`</div>`;
 }
 function infoHTML(){
   const team=`<div class="grplabel">🩺 담당 팀</div><div class="opts">`+TEAMS.map((o,i)=>
@@ -501,7 +509,10 @@ function toolsHTML(){
 function needGate(q){
   if(editing) return false;
   if(q.optional) return false;
-  if(q.type==='single') return !answers[q.id];
+  if(q.type==='single'){
+    if(q.etc&&answers[q.id+'_etcOn']) return !((answers[q.id+'_etcText']||'').trim());
+    return !answers[q.id];
+  }
   if(q.type==='multi') return !(answers[q.id]&&answers[q.id].length);
   if(q.type==='text') return !(answers[q.id]&&answers[q.id].trim());
   if(q.type==='info') return !answers.team;
@@ -516,22 +527,35 @@ function wire(q){
   if(back) back.onclick=()=>{if(busy)return;sfx.tap();goBack();};
 
   if(q.type==='single'||q.type==='multi'){
-    stageEl.querySelectorAll('.opt').forEach(el=>{
+    const recompute=()=>{ if(q.type==='multi'){
+      const sel=[...stageEl.querySelectorAll('.opt[data-i].sel')].map(o=>q.options[+o.dataset.i][1]);
+      answers[q.id]= answers[q.id+'_etcOn'] ? [...sel, etcLabel(q.id)] : sel; } };
+    stageEl.querySelectorAll('.opt[data-i]').forEach(el=>{
       el.onclick=()=>{if(busy&&q.type==='single')return;const i=+el.dataset.i;
         if(q.type==='single'){
           stageEl.querySelectorAll('.opt').forEach(o=>o.classList.remove('sel'));
-          el.classList.add('sel');answers[q.id]=q.options[i][1];sfx.pick();busy=true;
-          setTimeout(()=>advanceFromQuestion(),230); // 단일: 클릭 즉시 다음
+          el.classList.add('sel');answers[q.id]=q.options[i][1];if(q.etc)answers[q.id+'_etcOn']=false;
+          sfx.pick();busy=true;setTimeout(()=>advanceFromQuestion(),230);
         }else{
           el.classList.toggle('sel');const on=el.classList.contains('sel');
-          const s=new Set(answers[q.id]||[]);on?s.add(q.options[i][1]):s.delete(q.options[i][1]);
-          answers[q.id]=[...s];sfx.tap();if(on&&Math.random()<0.6)react();refresh();
+          if(on&&Math.random()<0.6)react();recompute();sfx.tap();refresh();
         }};
     });
+    if(q.etc){
+      const eopt=stageEl.querySelector('.etcopt');
+      if(eopt) eopt.onclick=()=>{
+        if(q.type==='single'){answers[q.id+'_etcOn']=true;answers[q.id]=etcLabel(q.id);sfx.pick();renderQuestion();const fi=document.getElementById('qetc');if(fi)fi.focus();return;}
+        const on=!eopt.classList.contains('sel');eopt.classList.toggle('sel',on);answers[q.id+'_etcOn']=on;
+        const inp=document.getElementById('qetc');if(inp)inp.classList.toggle('hidden',!on);
+        recompute();sfx.tap();refresh();if(on&&inp)inp.focus();
+      };
+      const ein=document.getElementById('qetc');
+      if(ein) ein.oninput=()=>{answers[q.id+'_etcText']=ein.value;if(q.type==='single')answers[q.id]=etcLabel(q.id);else recompute();refresh();};
+    }
     if(answers[q.id]){
-      stageEl.querySelectorAll('.opt').forEach((o,i)=>{
-        const v=q.options[i][1];
-        if(q.type==='single'?answers[q.id]===v:answers[q.id].includes(v)) o.classList.add('sel');
+      stageEl.querySelectorAll('.opt[data-i]').forEach((o)=>{
+        const v=q.options[+o.dataset.i][1];
+        if(q.type==='single'?answers[q.id]===v:(Array.isArray(answers[q.id])&&answers[q.id].includes(v))) o.classList.add('sel');
       });
     }
   }

@@ -219,7 +219,7 @@ const QUIZ_AFTER='usecase';          // 이 문항 직후 깜짝 퀴즈 등장
 const LIVER='<svg width="22" height="22" viewBox="0 0 24 24"><path d="M3 8C3 5 7 4 12 5 17 4 21 6 21 9 21 14 16 17 11 17 6 17 3 13 3 8Z" fill="#b6453a"/><path d="M9 6C10 9 10 12 8 15" stroke="#7a261b" stroke-width="1.3" fill="none" stroke-linecap="round"/></svg>';
 const UTERUS='<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#e06a93" stroke-width="1.7" stroke-linecap="round"><path d="M9 11.5C9 15.5 10 19 12 20 14 19 15 15.5 15 11.5"/><path d="M9 11.5C8 8.5 6 7.5 4 8.5 6 8.5 6 10.5 7.2 11.8"/><path d="M15 11.5C16 8.5 18 7.5 20 8.5 18 8.5 18 10.5 16.8 11.8"/><circle cx="3.8" cy="8.4" r="1.5" fill="#e06a93" stroke="none"/><circle cx="20.2" cy="8.4" r="1.5" fill="#e06a93" stroke="none"/></svg>';
 
-const TEAMS=[["🎗️","BC"],[LIVER,"GI"],[UTERUS,"GU/GYN"],["🫁","LC"],["🩸","HEM"]];
+const TEAMS=[["📋","BUD"],["🎗️","BC"],[LIVER,"GI"],[UTERUS,"GU/GYN"],["🫁","LC"],["🩸","HEM"]];
 const DEGREED=[["🥉","Bronze"],["🥈","Silver"],["🥇","Gold"],["💎","Platinum"]];
 
 const TOOL_OPTS=[
@@ -238,6 +238,14 @@ const QUIZ_TERMS=[
   ["Generative AI (생성형 AI)","글·이미지·코드 등 새로운 콘텐츠를 만들어내는 AI를 통칭해요."],
   ["Agentic AI (에이전트형 AI)","목표만 주면 스스로 계획하고 도구를 써서 여러 단계를 실행하는 AI. prompt를 넘어 업무를 ‘맡기는’ 단계예요."],
 ];
+
+// 마지막 깜짝 퀴즈 (O/X형) — 정답은 세션에서 공개
+const QUIZ_OX={
+  q:'업무 중 외부 AI tool을 사용하면 절대 안 된다 — 맞다? 아니다?',
+  sub:'맞다 / 아니다 — 정답은 세션에서 공개!',
+  short:'업무 중 외부 AI tool을 사용하면 절대 안 된다?',
+  reveal:'정답은 cyclemeeting에서 공개됩니다'
+};
 
 const QS=[
   {id:'info', type:'info', meta:'PLAYER PROFILE', title:'설문자 정보를 입력해주세요',
@@ -262,7 +270,7 @@ const QS=[
      ["✉️","HCP 메시지·이메일 작성"],
      ["🎯","옴니채널 캠페인 기획·콘텐츠"]
    ]},
-  {id:'level', type:'single', meta:'CLASS', title:'현재 AI 활용 레벨은 어디이신가요?', sub:'prompt → agent, 지금 내 위치는요?',
+  {id:'level', type:'single', etc:true, meta:'CLASS', title:'현재 AI 활용 레벨은 어디이신가요?', sub:'prompt → agent, 지금 내 위치는요?',
    options:[
      ["🌱","Lv.1 입문 — 가끔 물어보는 정도"],
      ["🌿","Lv.1.5 적응 중 — 점점 손에 익는 중"],
@@ -270,7 +278,7 @@ const QS=[
      ["🔁","Lv.3 자동화 시도 — 반복 업무 줄이는 중"],
      ["🤖","Lv.4 에이전트 — 워크플로우를 맡김"]
    ]},
-  {id:'blocker', type:'multi', meta:'BOSS', title:'AI 쓰실 때 가장 큰 벽은요?', sub:'앞을 막는 보스들이에요 (복수 선택)',
+  {id:'blocker', type:'multi', etc:true, meta:'BOSS', title:'AI 쓰실 때 가장 큰 벽은요?', sub:'앞을 막는 보스들이에요 (복수 선택)',
    options:[
      ["🎯","결과 품질 / 신뢰도"],["✏️","프롬프트 잘 못 씀"],["🗺️","어디에 써야 할지 모름"],
      ["🔒","보안 / 규정"],["⏳","쓸 시간이 없음"],["🌀","툴이 너무 많아 혼란"]
@@ -320,8 +328,8 @@ const MONS=[
 ];
 let screen='intro', qi=0, score=0, answers={}, muted=false;
 let chosenMon=null, monStage=0;
-let quizIdx=0, quizMarks=[], quizShown=false;
-let editing=false, savedIdx=-1, busy=false;
+let quizIdx=0, quizMarks=[], quizShown=false, quizOX=null;
+let editing=false, savedIdx=-1, busy=false, dirty=false;
 
 const stageEl=document.getElementById('stage');
 const hud=document.getElementById('hud');
@@ -457,7 +465,7 @@ function renderQuestion(){
   else if(q.type==='info') body=infoHTML();
   else if(q.type==='tools') body=toolsHTML();
 
-  const showNext=(q.type!=='single')||(q.etc&&answers[q.id+'_etcOn']);
+  const showNext=(q.type!=='single'&&q.type!=='info')||(q.etc&&answers[q.id+'_etcOn']);
   const nextLabel=editing?'수정 완료 ✓':(qi===QS.length-1?'제출하기 🏁':'다음 →');
   stageEl.innerHTML=`${monSVG(monStage)}<div class="speech" id="speech">${line}</div>
     <div class="card"><div class="qmeta">Q${qi+1}/${QS.length} · ${q.meta}</div>
@@ -466,7 +474,7 @@ function renderQuestion(){
         <button class="btn ghost" id="back">← 이전</button>
         ${showNext?`<button class="btn primary" id="next" ${needGate(q)?'disabled':''}>${nextLabel}</button>`:''}
       </div>
-      ${q.type==='single'&&!(q.etc&&answers[q.id+'_etcOn'])?'<div class="small">답을 누르면 바로 다음으로 넘어가요</div>':''}
+      ${(q.type==='info'||q.type==='single')&&!(q.etc&&answers[q.id+'_etcOn'])?'<div class="small">답을 누르면 바로 다음으로 넘어가요</div>':''}
     </div>`;
   wire(q);
 }
@@ -563,8 +571,10 @@ function wire(q){
   if(q.type==='slider'){const rg=document.getElementById('rg');if(answers[q.id]!=null)rg.value=answers[q.id];else answers[q.id]=40;const sv=document.getElementById('sv');const upd=()=>{sv.textContent=rg.value;rg.style.setProperty('--p',rg.value+'%');answers[q.id]=+rg.value;};rg.oninput=()=>{upd();sfx.tap();};upd();}
   if(q.type==='info'){
     const wireGroup=(cls,arr,key)=>{stageEl.querySelectorAll(cls).forEach(el=>{el.onclick=()=>{
+      if(busy)return;
       stageEl.querySelectorAll(cls).forEach(o=>o.classList.remove('sel'));el.classList.add('sel');
-      answers[key]=arr[+el.dataset.i][1];sfx.pick();refresh();};});
+      answers[key]=arr[+el.dataset.i][1];sfx.pick();refresh();
+      busy=true;setTimeout(()=>advanceFromQuestion(),230);};});
       if(answers[key])stageEl.querySelectorAll(cls).forEach((o,i)=>{if(arr[i][1]===answers[key])o.classList.add('sel')});};
     wireGroup('.teamopt',TEAMS,'team');
   }
@@ -595,7 +605,7 @@ function goBack(){
   qi--; screen='survey'; render();
 }
 function advanceFromQuestion(){
-  if(editing){editing=false;updateSaved();screen='myresult';render();return;}
+  if(editing){editing=false;dirty=true;updateSaved();screen='myresult';render();return;}
   const answeredId=QS[qi].id, ord=qi+1;
   const newStage=Math.min(MAXSTAGE,Math.floor(ord/2));
   const finishStep=()=>{ qi++; if(qi>=QS.length) finishSurvey(); else {screen='survey';render();} };
@@ -607,18 +617,31 @@ function advanceFromQuestion(){
 
 /* ---- 깜짝 퀴즈 (팝업) ---- */
 function showQuizPopup(done){
-  quizIdx=0; quizMarks=[];
+  quizIdx=0; quizMarks=[]; quizOX=null;
   const ov=document.createElement('div'); ov.className='pop'; document.body.appendChild(ov);
   sfx.level(); confetti(20); toast('⚡ 깜짝 퀴즈!');
   drawQuizCard(ov,done);
   requestAnimationFrame(()=>ov.classList.add('go'));
 }
 function drawQuizCard(ov,done){
-  if(quizIdx>=QUIZ_TERMS.length) return drawQuizReveal(ov,done);
+  const TOTAL=QUIZ_TERMS.length+1;
+  if(quizIdx>=TOTAL) return drawQuizReveal(ov,done);
+  const dots=Array.from({length:TOTAL},(_,i)=>`<i class="${i<quizIdx?'done':i===quizIdx?'now':''}"></i>`).join("");
+  // 마지막 문항: O/X (맞다/아니다)
+  if(quizIdx===QUIZ_TERMS.length){
+    ov.innerHTML=`<div class="popcard">
+      <div class="qmeta" style="text-align:center">⚡ SURPRISE QUIZ ${quizIdx+1}/${TOTAL}</div>
+      <div class="dots">${dots}</div>
+      <div class="term">🔺 ${QUIZ_OX.q}</div>
+      <div class="qsub" style="text-align:center">${QUIZ_OX.sub}</div>
+      <div class="nav"><button class="btn primary" id="qy">⭕ 맞다</button><button class="btn ghost" style="flex:1" id="qn">❌ 아니다</button></div></div>`;
+    document.getElementById('qy').onclick=()=>{quizOX=true;sfx.pick();confetti(8);quizIdx++;drawQuizCard(ov,done);};
+    document.getElementById('qn').onclick=()=>{quizOX=false;sfx.tap();quizIdx++;drawQuizCard(ov,done);};
+    return;
+  }
   const t=QUIZ_TERMS[quizIdx];
-  const dots=QUIZ_TERMS.map((_,i)=>`<i class="${i<quizIdx?'done':i===quizIdx?'now':''}"></i>`).join("");
   ov.innerHTML=`<div class="popcard">
-    <div class="qmeta" style="text-align:center">⚡ SURPRISE QUIZ ${quizIdx+1}/${QUIZ_TERMS.length}</div>
+    <div class="qmeta" style="text-align:center">⚡ SURPRISE QUIZ ${quizIdx+1}/${TOTAL}</div>
     <div class="dots">${dots}</div>
     <div class="term">${t[0]}</div>
     <div class="qsub" style="text-align:center">이 용어, 아세요? (정답·뜻은 마지막에 공개)</div>
@@ -628,9 +651,11 @@ function drawQuizCard(ov,done){
 }
 function drawQuizReveal(ov,done){
   const known=quizMarks.filter(Boolean).length;
-  answers.quizMarks=quizMarks.slice(); answers.quizKnown=known;
+  answers.quizMarks=quizMarks.slice(); answers.quizKnown=known; answers.quizOX=quizOX;
   confetti(60); sfx.win();
-  const list=QUIZ_TERMS.map((t,i)=>`<div class="reveal ${quizMarks[i]?'k':'u'}"><div class="rt"><span class="tag">${quizMarks[i]?'✅ 알아요':'🤔 몰라요'}</span> <b>${t[0]}</b></div><div class="rd">${t[1]}</div></div>`).join("");
+  const oxLabel=quizOX===true?'⭕ 맞다':quizOX===false?'❌ 아니다':'–';
+  const list=QUIZ_TERMS.map((t,i)=>`<div class="reveal ${quizMarks[i]?'k':'u'}"><div class="rt"><span class="tag">${quizMarks[i]?'✅ 알아요':'🤔 몰라요'}</span> <b>${t[0]}</b></div><div class="rd">${t[1]}</div></div>`).join("")
+    +`<div class="reveal u"><div class="rt"><span class="tag">${oxLabel}</span> <b>🔺 ${QUIZ_OX.short}</b></div><div class="rd">${QUIZ_OX.reveal}</div></div>`;
   ov.innerHTML=`<div class="popcard"><div class="qmeta" style="text-align:center">QUIZ RESULT · 내 AI 용어 지수</div>
     <div class="term">${known} / ${QUIZ_TERMS.length}</div>
     <div class="qsub" style="text-align:center">아래에서 각 용어의 진짜 뜻을 확인해 보세요 👇</div>
@@ -675,7 +700,7 @@ function finishSurvey(){
   answers._ts=answers._ts||new Date().toISOString();
   const rec=payload();
   const all=loadAll(); savedIdx=all.length; all.push(rec); saveAll(all);
-  remotePush(rec);
+  remotePush(rec); dirty=false;
   screen='end'; render();
 }
 function updateSaved(){ if(savedIdx<0)return; const all=loadAll(); if(all[savedIdx]) all[savedIdx]=payload(); saveAll(all); }
@@ -720,19 +745,38 @@ function renderMyResult(){
         <div class="mra">${esc(fmtAnswer(q))}</div></div>
         <button class="editbtn" data-i="${i}">수정</button></div></div>`;
   }).join("");
+  const oxLbl=answers.quizOX===true?'⭕ 맞다':answers.quizOX===false?'❌ 아니다':'–';
   const quizSec = answers.quizMarks ? `<div class="block"><h3>⚡ 깜짝 퀴즈 (수정 불가 · 정답 공개)</h3>
     ${QUIZ_TERMS.map((t,i)=>`<div class="reveal ${answers.quizMarks[i]?'k':'u'}"><div class="rt"><span class="tag">${answers.quizMarks[i]?'✅ 알아요':'🤔 몰라요'}</span> <b>${esc(t[0])}</b></div><div class="rd">${esc(t[1])}</div></div>`).join("")}
+    <div class="reveal u"><div class="rt"><span class="tag">${oxLbl}</span> <b>🔺 ${esc(QUIZ_OX.short)}</b></div><div class="rd">${esc(QUIZ_OX.reveal)}</div></div>
     </div>` : '';
   stageEl.innerHTML=`<div class="mr"><div class="dhead"><h2>📋 내 응답 결과</h2></div>
     <div class="qsub" style="margin-bottom:12px">각 문항의 <b>수정</b>을 누르면 답을 바꿀 수 있어요. 변경은 자동 저장됩니다.</div>
     ${items}${quizSec}
-    <div class="nav"><button class="btn primary" id="home">홈으로 ▶</button></div></div>`;
+    ${dirty?'<div class="qsub" style="text-align:center;color:#ffe14d;margin:4px 0 8px">✏️ 수정한 내용이 있어요. 아래 버튼으로 최종 제출하세요!</div>':''}
+    <div class="nav">
+      <button class="btn ghost" id="home">홈으로 ▶</button>
+      <button class="btn primary" id="resubmit" style="flex:2">📤 수정본으로 다시 제출하기</button>
+    </div></div>`;
   stageEl.querySelectorAll('.editbtn').forEach(b=>{b.onclick=()=>{editing=true;qi=+b.dataset.i;screen='survey';render();};});
   document.getElementById('home').onclick=()=>resetAll();
+  document.getElementById('resubmit').onclick=()=>resubmit();
+}
+
+function resubmit(){
+  if(!dirty){ toast('변경된 내용이 없어요'); return; }
+  const all=loadAll();
+  const rec={...payload(),_revised:true};
+  if(savedIdx>=0 && all[savedIdx]) all[savedIdx]=rec; else { savedIdx=all.length; all.push(rec); }
+  saveAll(all);
+  remotePush(rec);            // 같은 _ts + _revised 표시로 수정본 재전송
+  dirty=false;
+  sfx.win(); confetti(60); toast('✅ 수정본이 최종 제출되었어요!');
+  render();
 }
 
 function resetAll(){
-  screen='intro';qi=0;score=0;answers={};chosenMon=null;monStage=0;quizIdx=0;quizMarks=[];quizShown=false;editing=false;savedIdx=-1;render();
+  screen='intro';qi=0;score=0;answers={};chosenMon=null;monStage=0;quizIdx=0;quizMarks=[];quizShown=false;editing=false;savedIdx=-1;dirty=false;render();
 }
 
 /* ===================== 관리자 대시보드 ===================== */
@@ -809,8 +853,8 @@ function renderDash(){
 function importCode(str){let ok=0;str.split(/[\s,]+/).filter(Boolean).forEach(c=>{try{const o=JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(c)))));if(o&&typeof o==='object'){const a=loadAll();a.push(o);saveAll(a);ok++;}}catch(e){}});return ok;}
 function exportCSV(){
   const rows=loadAll();if(!rows.length){toast('응답 없음');return;}
-  const cols=['_ts','team','degreed','freq','azcombo','tools','toolsEtc','usecase','level','blocker','learn','delegate','expect','goal','quizKnown','_score','_rank','_partner'];
-  const head=['제출시각','팀','Degreed','빈도','AZ조합선택','툴','기타툴','활용업무','레벨','장벽','배우고싶은것','맡기고싶은업무','기대절감','세션기대','용어지수','점수','랭크','파트너'];
+  const cols=['_ts','team','degreed','freq','azcombo','tools','toolsEtc','usecase','level','blocker','learn','delegate','expect','goal','quizKnown','quizOX','_score','_rank','_partner'];
+  const head=['제출시각','팀','Degreed','빈도','AZ조합선택','툴','기타툴','활용업무','레벨','장벽','배우고싶은것','맡기고싶은업무','기대절감','세션기대','용어지수','OX응답','점수','랭크','파트너'];
   const esc=v=>{if(v==null)v='';if(Array.isArray(v))v=v.join(' / ');v=String(v).replace(/"/g,'""');return `"${v}"`;};
   const csv=[head.join(",")].concat(rows.map(r=>cols.map(c=>esc(r[c])).join(","))).join("\r\n");
   const blob=new Blob(["﻿"+csv],{type:'text/csv;charset=utf-8'});
